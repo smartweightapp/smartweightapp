@@ -839,6 +839,16 @@ const CONFIG = {
   timeout:        8000
 };
 
+/* ── CI-BAKED PROFILE NAMES ─────────────────────────────────── */
+// These are injected by GitHub Actions from secrets.
+// They are the source-of-truth for display names and are NEVER
+// stored in localStorage or Google Sheets — they live only in the
+// deployed HTML so they can't be overwritten by stale data.
+const PROFILE_NAMES = {
+  A: '__PROFILE_A_NAME__',
+  B: '__PROFILE_B_NAME__'
+};
+
 /* ── STATE ──────────────────────────────────────────────────── */
 const state = {
   profile: 'A',                   // active profile
@@ -855,14 +865,33 @@ const state = {
 
 /* ── LOCAL STORAGE HELPERS ──────────────────────────────────── */
 function loadProfileFromStorage(user) {
-  const raw = localStorage.getItem(`vita_profile_${user}`);
-  return raw ? JSON.parse(raw) : {
-    name: user === 'A' ? '__PROFILE_A_NAME__' : '__PROFILE_B_NAME__',
-    sex: 'male', age: 0, weight: 0, height: 0, activity: 1.55
+  const raw     = localStorage.getItem(`vita_profile_${user}`);
+  const stored  = raw ? JSON.parse(raw) : {};
+  // Name: prefer user-set override, else CI-baked name, else generic fallback.
+  // Health data (age/weight/height/sex/activity): from storage or blank defaults.
+  return {
+    name:           stored.nameOverride || PROFILE_NAMES[user],
+    nameOverride:   stored.nameOverride || '',   // tracks if user explicitly changed it
+    sex:            stored.sex      || 'male',
+    age:            stored.age      || 0,
+    weight:         stored.weight   || 0,
+    height:         stored.height   || 0,
+    activity:       stored.activity || 1.55,
+    configured:     !!(stored.age && stored.weight && stored.height)
   };
 }
 function saveProfileToStorage(user, data) {
-  localStorage.setItem(`vita_profile_${user}`, JSON.stringify(data));
+  // Only store health data + optional name override, never the CI-baked default name.
+  const toStore = {
+    nameOverride: data.nameOverride || '',
+    sex:          data.sex,
+    age:          data.age,
+    weight:       data.weight,
+    height:       data.height,
+    activity:     data.activity,
+    configured:   !!(data.age && data.weight && data.height)
+  };
+  localStorage.setItem(`vita_profile_${user}`, JSON.stringify(toStore));
 }
 function loadEntriesFromStorage(user) {
   const foods = JSON.parse(localStorage.getItem(`vita_foods_${user}`) || '[]');
@@ -955,9 +984,24 @@ async function apiGet(params) {
 async function syncProfile(user) {
   if (!CONFIG.scriptUrl) return;
   const data = await apiGet({ action: 'getProfile', user });
-  if (data && data.profile) {
-    state.profiles[user] = { ...state.profiles[user], ...data.profile };
-    saveProfileToStorage(user, state.profiles[user]);
+  if (data && data.profile && data.profile.age) {
+    // Only adopt Sheets data if it represents a REAL configured profile (age > 0).
+    // Never overwrite name — that comes from CI secrets, not Sheets.
+    const remote = data.profile;
+    const merged = {
+      ...state.profiles[user],          // keep current (has CI name)
+      nameOverride: remote.nameOverride || state.profiles[user].nameOverride || '',
+      sex:          remote.sex      || state.profiles[user].sex,
+      age:          remote.age      || state.profiles[user].age,
+      weight:       remote.weight   || state.profiles[user].weight,
+      height:       remote.height   || state.profiles[user].height,
+      activity:     remote.activity || state.profiles[user].activity,
+      configured:   true
+    };
+    // Recompute display name after merge
+    merged.name = merged.nameOverride || PROFILE_NAMES[user];
+    state.profiles[user] = merged;
+    saveProfileToStorage(user, merged);
   }
 }
 
@@ -996,12 +1040,17 @@ async function switchProfile(user) {
   state.profile = user;
   document.getElementById('btnProfileA').classList.toggle('active', user === 'A');
   document.getElementById('btnProfileB').classList.toggle('active', user === 'B');
+  // Load local cache immediately for snappy UI
   loadEntriesFromStorage(user);
+  renderAll();
+  // Then sync from Sheets in background
   if (CONFIG.scriptUrl) {
     await syncTodayEntries(user);
+    renderAll();  // re-render with fresh Sheets data
   }
-  renderAll();
-  showToast(`Perfil ${user}: ${state.profiles[user].name}`, 'success');
+  showToast(`${state.profiles[user].name}`, 'success');
+  // Nudge if this profile is also unconfigured
+  if (!state.profiles[user].configured) showUnconfiguredBanner();
 }
 
 /* ── TAB SWITCH ─────────────────────────────────────────────── */
@@ -1315,22 +1364,34 @@ function switchSettingsProfile(user) {
 }
 function loadSettingsForm(user) {
   const p = state.profiles[user];
-  document.getElementById('sName').value    = p.name     || '';
-  document.getElementById('sSex').value     = p.sex      || 'male';
-  document.getElementById('sAge').value     = p.age      || '';
-  document.getElementById('sWeight').value  = p.weight   || '';
-  document.getElementById('sHeight').value  = p.height   || '';
-  document.getElementById('sActivity').value= p.activity || '1.55';
+  const nameInput = document.getElementById('sName');
+  // Show override name if user set one; keep field EMPTY otherwise so CI name
+  // shows as placeholder, making clear it is already set.
+  nameInput.value       = p.nameOverride || '';
+  nameInput.placeholder = PROFILE_NAMES[user];
+  document.getElementById('sSex').value      = p.sex      || 'male';
+  // Only pre-fill health numbers if the profile has been configured (not 0).
+  document.getElementById('sAge').value      = p.age      || '';
+  document.getElementById('sWeight').value   = p.weight   || '';
+  document.getElementById('sHeight').value   = p.height   || '';
+  document.getElementById('sActivity').value = p.activity || '1.55';
 }
 async function saveSettings() {
   const user = state.settingsProfile;
+  const typedName   = document.getElementById('sName').value.trim();
+  // Only store as override if user typed something different from the CI-baked name
+  const nameOverride = (typedName && typedName !== PROFILE_NAMES[user]) ? typedName : '';
   const profile = {
-    name:     document.getElementById('sName').value.trim()    || `Usuario ${user}`,
-    sex:      document.getElementById('sSex').value,
-    age:      parseFloat(document.getElementById('sAge').value) || 0,
-    weight:   parseFloat(document.getElementById('sWeight').value) || 0,
-    height:   parseFloat(document.getElementById('sHeight').value) || 0,
-    activity: parseFloat(document.getElementById('sActivity').value) || 1.55
+    name:         nameOverride || PROFILE_NAMES[user],
+    nameOverride,
+    sex:          document.getElementById('sSex').value,
+    age:          parseFloat(document.getElementById('sAge').value)      || 0,
+    weight:       parseFloat(document.getElementById('sWeight').value)   || 0,
+    height:       parseFloat(document.getElementById('sHeight').value)   || 0,
+    activity:     parseFloat(document.getElementById('sActivity').value) || 1.55,
+    configured:   !!(parseFloat(document.getElementById('sAge').value) &&
+                     parseFloat(document.getElementById('sWeight').value) &&
+                     parseFloat(document.getElementById('sHeight').value))
   };
   state.profiles[user] = profile;
   saveProfileToStorage(user, profile);
@@ -1395,21 +1456,44 @@ document.getElementById('settingsModal').addEventListener('click', function(e) {
 
 /* ── INIT ───────────────────────────────────────────────────── */
 async function init() {
+  // 1. Load whatever is in localStorage first (instant render)
   loadEntriesFromStorage('A');
   loadEntriesFromStorage('B');
 
   if (CONFIG.scriptUrl) {
+    // 2. Sync profiles from Sheets — cross-device source of truth
+    //    This runs BEFORE first render so the UI is already correct.
     setSyncStatus('syncing');
-    await Promise.all([
-      syncProfile('A'), syncProfile('B'),
-      syncTodayEntries('A')
-    ]);
+    await Promise.all([syncProfile('A'), syncProfile('B')]);
+    // 3. Now load today's entries for the active profile
+    await syncTodayEntries(state.profile);
     setSyncStatus('online');
   } else {
     setSyncStatus('local');
   }
 
+  // 4. Render with fresh data
   renderAll();
+
+  // 5. Nudge unconfigured profiles to open settings
+  const prof = state.profiles[state.profile];
+  if (!prof.configured) {
+    showUnconfiguredBanner();
+  }
+}
+
+function showUnconfiguredBanner() {
+  const snip = document.getElementById('profileSnippet');
+  if (!snip) return;
+  snip.innerHTML = `
+    <div class="balance-title" style="color:var(--amber);">⚠ Perfil sin configurar</div>
+    <div style="font-size:.82rem;color:var(--text-2);line-height:1.6;margin-bottom:.75rem;">
+      Configura tu peso, altura y edad para calcular IMC y TDEE personalizados.
+      Los datos se sincronizarán en todos tus dispositivos via Google Sheets.
+    </div>
+    <button class="btn-primary" style="padding:.6rem 1.2rem;width:auto;" onclick="openSettings()">
+      Configurar ahora →
+    </button>`;
 }
 
 init();
