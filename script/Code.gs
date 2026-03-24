@@ -1,429 +1,208 @@
-/**
- * ════════════════════════════════════════════════════════════════
- *  VitaTrack — Google Apps Script Backend
- *  Archivo: Code.gs
- * ════════════════════════════════════════════════════════════════
- *
- *  INSTRUCCIONES DE DESPLIEGUE:
- *  1. Ve a https://script.google.com y crea un nuevo proyecto.
- *  2. Pega este código en el editor (reemplaza el contenido de Code.gs).
- *  3. Haz clic en "Implementar" → "Nueva implementación".
- *  4. Tipo: "Aplicación web".
- *  5. Ejecutar como: "Yo" (tu cuenta Google).
- *  6. Quién tiene acceso: "Cualquier usuario" (para uso anónimo/público).
- *  7. Haz clic en "Implementar" y copia la URL generada.
- *  8. Pega esa URL en la sección de Configuración de VitaTrack.
- *
- *  ESTRUCTURA DE LA HOJA DE CÁLCULO:
- *  El script creará automáticamente las siguientes hojas:
- *    - Profiles   → datos de perfil de los usuarios A y B
- *    - Foods      → registro de comidas
- *    - Exercises  → registro de ejercicios
- * ════════════════════════════════════════════════════════════════
- */
+// ─────────────────────────────────────────────────────────────────
+// SERVICIOS DE SALUD — Apps Script backend
+// Columnas desde C (índice 0 relativo a START_COL=3):
+//   C(0)=Folio   D(1)=Fecha    E(2)=Nombre   F(3)=Prom    G(4)=Tel
+//   H(5)=Calle   I(6)=Colonia  J(7)=Municipio
+//   K(8)=Edad
+//   L(9)=Diabetes  M(10)=Presion   ← NUEVAS
+//   N(11)=Costo    O(12)=FPago    P(13)=Anticipo  Q(14)=Rbdo  R(15)=Deuda
+//   S(16)=vacía
+//   T(17)-W(20)=OD(ESF/CYL/EJE/ADD)
+//   X(21)-AA(24)=OI(ESF/CYL/EJE/ADD)
+//   AB(25)=DIP   AC(26)=ALT
+//   AD(27)=Varilla  AE(28)=Aro  AF(29)=Puente
+//   AG(30)=AntOD  AH(31)=AntOI  AI(32)=ActOD  AJ(33)=ActOI
+//   AK(34)=VISION  AL(35)=FILTRO  AM(36)=AR  AN(37)=ARMAZON  AO(38)=MEDIDAS
+//   AP(39)=vacía
+//   AQ(40)=LAB  AR(41)=FOL  AS(42)=MICAS  AT(43)=BISEL  AU(44)=MAQ
+//   AV(45)=ARMAZON2  AW(46)=ACC
+//   AX(47)=$ SUM   AY(48)=Timestamp   AZ(49)=Utilidad
+// ─────────────────────────────────────────────────────────────────
 
-// ── ID DE LA HOJA DE CÁLCULO ────────────────────────────────────
-// Opción A: Deja en blanco para que el script cree una nueva hoja automáticamente.
-// Opción B: Pega aquí el ID de una hoja existente (lo encuentras en la URL de Google Sheets).
-const SPREADSHEET_ID = '';
+var SHEET_ID       = '1SWfzIJLrA5I9-oqXLBl-oIptJUpzd9YIsT5jASGb0R0';
+var SHEET_NAME     = 'Control';
+var START_COL      = 3;   // C
+var DATA_START_ROW = 4;   // Rows 1-2=headers, 3=blank/summary, 4+=data
 
-// ── NOMBRE DEL SPREADSHEET (si se crea automáticamente) ─────────
-const SPREADSHEET_NAME = 'VitaTrack — Health Data';
+var HEADERS = [
+  'Folio','Fecha','Nombre del Px','Prom','Teléfono Px',  // C-G (0-4)
+  'Calle y Numero','Colonia','Municipio',                 // H-J (5-7)
+  'Edad',                                                  // K   (8)
+  'Diabetes','Presion',                                    // L-M (9-10) NUEVAS
+  'Costo Lente','Forma de Pago','Anticipo','Rbdo','Deuda', // N-R (11-15)
+  '',                                                       // S   (16) vacía
+  'ESF','CYL','EJE','ADD',   // OD: T-W (17-20)
+  'ESF','CYL','EJE','ADD',   // OI: X-AA (21-24)
+  'DIP','ALT',               // AB-AC (25-26)
+  'VARILLA','ARO','PUENTE',  // AD-AF (27-29)
+  'OD','OI','OD','OI',       // Ant AG-AH, Act AI-AJ (30-33)
+  'VISION','FILTRO','AR','ARMAZON','MEDIDAS', // AK-AO (34-38)
+  '',                        // AP (39) vacía
+  'LAB','FOL','MICAS','BISEL','MAQ','ARMAZON','ACC', // AQ-AW (40-46)
+  '$','Timestamp','Utilidad' // AX-AZ (47-49)
+];
 
-// ════════════════════════════════════════════════════════════════
-//  HANDLERS PRINCIPALES
-// ════════════════════════════════════════════════════════════════
-
-/**
- * GET Handler — Recupera datos de la hoja de cálculo.
- * Parámetros de consulta:
- *   ?action=ping                          → Prueba de conexión
- *   ?action=getProfile&user=A             → Perfil del usuario
- *   ?action=getEntries&user=A&date=YYYY-MM-DD → Comidas y ejercicios del día
- *   ?action=getAllEntries&user=A           → Todos los registros del usuario
- */
-function doGet(e) {
-  try {
-    const params = e.parameter;
-    const action = params.action;
-    let result;
-
-    switch (action) {
-      case 'ping':
-        result = { status: 'ok', timestamp: new Date().toISOString() };
-        break;
-
-      case 'getProfile':
-        result = getProfile(params.user);
-        break;
-
-      case 'getEntries':
-        result = getEntries(params.user, params.date);
-        break;
-
-      case 'getAllEntries':
-        result = getAllEntries(params.user);
-        break;
-
-      default:
-        result = { error: 'Acción no reconocida', action };
-    }
-
-    return buildResponse(result);
-
-  } catch (err) {
-    return buildResponse({ error: err.message, stack: err.stack });
-  }
+function getSheet() {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
+  return sheet;
 }
 
-/**
- * POST Handler — Guarda datos en la hoja de cálculo.
- * Body JSON:
- *   { action: 'saveProfile',  user: 'A', profile: {...} }
- *   { action: 'addFood',      user: 'A', entry: {...} }
- *   { action: 'addExercise',  user: 'A', entry: {...} }
- *   { action: 'deleteFood',   user: 'A', id: '...' }
- *   { action: 'deleteExercise', user: 'A', id: '...' }
- */
+function ensureHeaders(sheet) {
+  if (!sheet) return;
+  if (sheet.getLastRow() > 0) return;
+  var len = HEADERS.length;
+  var g1 = [];
+  for (var i = 0; i < len; i++) g1.push('');
+  g1[17] = 'OD';
+  g1[21] = 'OI';
+  g1[27] = 'MEDIDAS ARMAZÓN';
+  g1[30] = 'ANTERIOR';
+  g1[32] = 'ACTUAL';
+  g1[40] = 'LABORATORIO';
+  sheet.getRange(1, START_COL, 1, len).setValues([g1])
+    .setFontWeight('bold').setBackground('#1a7a4a').setFontColor('#ffffff');
+  sheet.getRange(2, START_COL, 1, len).setValues([HEADERS])
+    .setFontWeight('bold').setBackground('#2d9e62').setFontColor('#ffffff');
+  sheet.setFrozenRows(2);
+}
+
+function buildRow(d, row) {
+  return [
+    // C-J: datos paciente
+    d['folio']||'', d['fecha']||'', d['nombre del px']||'', d['prom']||'',
+    d['teléfono px']||'', d['calle y numero']||'', d['colonia']||'', d['municipio']||'',
+    // K: Edad
+    d['edad']||'',
+    // L-M: Diabetes, Presion (NUEVAS)
+    d['diabetes']||'', d['presion']||'',
+    // N-R: Pago
+    d['costo lente']||0, d['forma de pago']||'', d['anticipo']||0, d['rbdo']||0, d['deuda']||0,
+    // S: vacía
+    '',
+    // T-W: OD
+    d['od_esf']||'', d['od_cyl']||'', d['od_eje']||'', d['od_add']||'',
+    // X-AA: OI
+    d['oi_esf']||'', d['oi_cyl']||'', d['oi_eje']||'', d['oi_add']||'',
+    // AB-AC: DIP, ALT
+    d['dip']||'', d['alt']||'',
+    // AD-AF: Varilla, Aro, Puente
+    d['varilla']||'', d['aro']||'', d['puente']||'',
+    // AG-AJ: Anterior OD/OI, Actual OD/OI
+    d['ant_od']||'', d['ant_oi']||'', d['act_od']||'', d['act_oi']||'',
+    // AK-AO: Vision, Filtro, AR, Armazon, Medidas(color)
+    d['vision']||'', d['filtro']||'', d['ar']||'', d['armazon']||'', d['medidas']||'',
+    // AP: vacía
+    '',
+    // AQ-AW: Lab
+    d['lab']||'', d['fol_lab']||'',
+    d['micas']||0, d['bisel']||0, d['maq']||0, d['armazon2']||'', d['acc']||'',
+    // AX: =SUM(AS:AW)
+    '=SUM(AS'+row+':AW'+row+')',
+    // AY: timestamp
+    new Date().toLocaleString('es-MX'),
+    // AZ: utilidad =+N-AX
+    '=+N'+row+'-AX'+row
+  ];
+}
+
 function doPost(e) {
   try {
-    const body   = JSON.parse(e.postData.contents);
-    const action = body.action;
-    let result;
+    var data  = JSON.parse(e.postData.contents);
+    var sheet = getSheet();
+    if (!sheet) return json({ ok:false, error:'No se pudo obtener la hoja "'+SHEET_NAME+'"' });
+    ensureHeaders(sheet);
+    var nextRow = sheet.getLastRow() + 1;
+    if (nextRow < DATA_START_ROW) nextRow = DATA_START_ROW;
+    var row = buildRow(data, nextRow);
+    sheet.getRange(nextRow, START_COL, 1, row.length).setValues([row]);
+    // Force column C (folio) to plain text so Sheets never converts it to a date
+    sheet.getRange(nextRow, START_COL).setNumberFormat('@STRING@');
+    return json({ ok:true, row:nextRow });
+  } catch(err) {
+    return json({ ok:false, error:String(err.message||err) });
+  }
+}
 
-    switch (action) {
-      case 'saveProfile':
-        result = saveProfile(body.user, body.profile);
-        break;
+function doGet(e) {
+  try {
+    var action = (e && e.parameter && e.parameter.action) || '';
+    if (action !== 'history') return json({ ok:true, status:'Servicios de Salud API activa' });
 
-      case 'addFood':
-        result = addFood(body.user, body.entry);
-        break;
+    var ss    = SpreadsheetApp.openById(SHEET_ID);
+    var sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) return json({ ok:true, rows:[], note:'Hoja no encontrada' });
 
-      case 'addExercise':
-        result = addExercise(body.user, body.entry);
-        break;
+    var lastRow = sheet.getLastRow();
+    if (lastRow < DATA_START_ROW) return json({ ok:true, rows:[] });
 
-      case 'deleteFood':
-        result = deleteRow('Foods', body.id);
-        break;
+    var lastCol = sheet.getLastColumn();
+    if (lastCol < START_COL) return json({ ok:true, rows:[] });
 
-      case 'deleteExercise':
-        result = deleteRow('Exercises', body.id);
-        break;
+    var values = sheet.getRange(
+      DATA_START_ROW, START_COL,
+      lastRow - DATA_START_ROW + 1,
+      lastCol - START_COL + 1
+    ).getValues();
 
-      default:
-        result = { error: 'Acción no reconocida', action };
+    // 0-indexed from C
+    var colMap = {
+      folio:0, fecha:1, nombre:2, prom:3, tel:4,
+      calle:5, colonia:6, municipio:7,
+      edad:8,
+      diabetes:9, presion:10,          // L-M NUEVAS
+      costo:11, fpago:12, anticipo:13, rbdo:14, deuda:15,
+      // 16 = vacía (S)
+      od_esf:17, od_cyl:18, od_eje:19, od_add:20,
+      oi_esf:21, oi_cyl:22, oi_eje:23, oi_add:24,
+      dip:25, alt:26,
+      varilla:27, aro:28, puente:29,
+      ant_od:30, ant_oi:31, act_od:32, act_oi:33,
+      vision:34, filtro:35, ar_lens:36, armazon:37, medidas:38,
+      // 39 = vacía (AP)
+      lab:40, fol:41, micas:42, bisel:43, maq:44, armazon2:45, acc:46,
+      costo_prod:47, ts:48, utilidad:49
+    };
+
+    var tz   = Session.getScriptTimeZone();
+    var rows = [];
+
+    for (var i = 0; i < values.length; i++) {
+      var r = values[i];
+      if (r[0]==='' || r[0]===null || r[0]===undefined) continue;
+      // Skip rows where the folio column C looks like a date (bad data)
+      var folioVal = r[0];
+      if (folioVal instanceof Date) continue;  // date object in column C
+      var folioStr = String(folioVal);
+      if (/^\d{4}-\d{2}-\d{2}/.test(folioStr)) continue;  // ISO date string
+
+      var obj  = {};
+      var keys = Object.keys(colMap);
+      for (var k = 0; k < keys.length; k++) {
+        var key = keys[k];
+        var idx = colMap[key];
+        obj[key] = (idx < r.length && r[idx]!==null && r[idx]!==undefined) ? r[idx] : '';
+      }
+
+      if (obj.fecha instanceof Date) {
+        obj.fecha = Utilities.formatDate(obj.fecha, tz, 'yyyy-MM-dd');
+      } else {
+        obj.fecha = String(obj.fecha||'');
+      }
+
+      rows.push(obj);
     }
 
-    return buildResponse(result);
+    return json({ ok:true, rows:rows });
 
-  } catch (err) {
-    return buildResponse({ error: err.message, stack: err.stack });
+  } catch(err) {
+    return json({ ok:false, error:String(err.message||err), rows:[] });
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-//  SPREADSHEET HELPERS
-// ════════════════════════════════════════════════════════════════
-
-/**
- * Obtiene o crea el Spreadsheet y garantiza que las hojas existan.
- */
-function getSpreadsheet() {
-  let ss;
-
-  if (SPREADSHEET_ID) {
-    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  } else {
-    // Buscar en el Drive si ya existe uno con ese nombre
-    const files = DriveApp.getFilesByName(SPREADSHEET_NAME);
-    if (files.hasNext()) {
-      ss = SpreadsheetApp.open(files.next());
-    } else {
-      ss = SpreadsheetApp.create(SPREADSHEET_NAME);
-      Logger.log('Nuevo Spreadsheet creado: ' + ss.getId());
-    }
-  }
-
-  ensureSheets(ss);
-  return ss;
-}
-
-/**
- * Crea las hojas necesarias si no existen y añade encabezados.
- */
-function ensureSheets(ss) {
-  const sheets = {
-    'Profiles': ['user', 'name', 'sex', 'age', 'weight', 'height', 'activity', 'updatedAt'],
-    'Foods':    ['id', 'user', 'date', 'name', 'ingredients', 'calories', 'portions', 'totalCalories', 'meal', 'createdAt'],
-    'Exercises':['id', 'user', 'date', 'name', 'duration', 'caloriesBurned', 'intensity', 'notes', 'createdAt']
-  };
-
-  for (const [name, headers] of Object.entries(sheets)) {
-    let sheet = ss.getSheetByName(name);
-    if (!sheet) {
-      sheet = ss.insertSheet(name);
-      sheet.getRange(1, 1, 1, headers.length)
-           .setValues([headers])
-           .setFontWeight('bold')
-           .setBackground('#1a2332')
-           .setFontColor('#B5FF4D');
-      sheet.setFrozenRows(1);
-    }
-  }
-
-  // Eliminar Sheet1 por defecto si existe y está vacía
-  const defaultSheet = ss.getSheetByName('Sheet1') || ss.getSheetByName('Hoja 1');
-  if (defaultSheet && defaultSheet.getLastRow() <= 1) {
-    try { ss.deleteSheet(defaultSheet); } catch(e) {}
-  }
-}
-
-/**
- * Obtiene una hoja por nombre.
- */
-function getSheet(name) {
-  return getSpreadsheet().getSheetByName(name);
-}
-
-/**
- * Convierte todas las filas de una hoja (excepto encabezado) en array de objetos.
- */
-function sheetToObjects(sheet) {
-  const data = sheet.getDataRange().getValues();
-  if (data.length < 2) return [];
-  const headers = data[0];
-  return data.slice(1).map(row => {
-    const obj = {};
-    headers.forEach((h, i) => { obj[h] = row[i]; });
-    return obj;
-  });
-}
-
-// ════════════════════════════════════════════════════════════════
-//  PROFILE FUNCTIONS
-// ════════════════════════════════════════════════════════════════
-
-function getProfile(user) {
-  if (!user) return { error: 'user requerido' };
-  const sheet   = getSheet('Profiles');
-  const records = sheetToObjects(sheet);
-  const profile = records.find(r => r.user === user);
-  return { profile: profile || null };
-}
-
-function saveProfile(user, profile) {
-  if (!user || !profile) return { error: 'Datos incompletos' };
-
-  const sheet   = getSheet('Profiles');
-  const data    = sheet.getDataRange().getValues();
-  const headers = data[0]; // ['user','name','sex','age','weight','height','activity','updatedAt']
-
-  const row = [
-    user,
-    profile.name     || '',
-    profile.sex      || 'male',
-    profile.age      || 0,
-    profile.weight   || 0,
-    profile.height   || 0,
-    profile.activity || 1.55,
-    new Date().toISOString()
-  ];
-
-  // Buscar si ya existe
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === user) {
-      sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
-      return { success: true, action: 'updated' };
-    }
-  }
-
-  // Insertar nuevo
-  sheet.appendRow(row);
-  return { success: true, action: 'inserted' };
-}
-
-// ════════════════════════════════════════════════════════════════
-//  FOOD FUNCTIONS
-// ════════════════════════════════════════════════════════════════
-
-function addFood(user, entry) {
-  if (!user || !entry) return { error: 'Datos incompletos' };
-  const sheet = getSheet('Foods');
-
-  const row = [
-    entry.id             || Date.now().toString(),
-    user,
-    entry.date           || new Date().toISOString().split('T')[0],
-    entry.name           || '',
-    entry.ingredients    || '',
-    entry.calories       || 0,
-    entry.portions       || 1,
-    entry.totalCalories  || entry.calories || 0,
-    entry.meal           || '',
-    new Date().toISOString()
-  ];
-
-  sheet.appendRow(row);
-  return { success: true, id: row[0] };
-}
-
-function getFoodsByUser(user) {
-  const sheet   = getSheet('Foods');
-  const records = sheetToObjects(sheet);
-  return records.filter(r => String(r.user) === String(user));
-}
-
-// ════════════════════════════════════════════════════════════════
-//  EXERCISE FUNCTIONS
-// ════════════════════════════════════════════════════════════════
-
-function addExercise(user, entry) {
-  if (!user || !entry) return { error: 'Datos incompletos' };
-  const sheet = getSheet('Exercises');
-
-  const row = [
-    entry.id             || Date.now().toString(),
-    user,
-    entry.date           || new Date().toISOString().split('T')[0],
-    entry.name           || '',
-    entry.duration       || 0,
-    entry.caloriesBurned || 0,
-    entry.intensity      || 'Media',
-    entry.notes          || '',
-    new Date().toISOString()
-  ];
-
-  sheet.appendRow(row);
-  return { success: true, id: row[0] };
-}
-
-function getExercisesByUser(user) {
-  const sheet   = getSheet('Exercises');
-  const records = sheetToObjects(sheet);
-  return records.filter(r => String(r.user) === String(user));
-}
-
-// ════════════════════════════════════════════════════════════════
-//  COMBINED QUERIES
-// ════════════════════════════════════════════════════════════════
-
-/**
- * Retorna comidas y ejercicios de un usuario para una fecha específica.
- */
-function getEntries(user, date) {
-  if (!user) return { error: 'user requerido' };
-
-  const foods     = getFoodsByUser(user).filter(f =>
-    !date || String(f.date).startsWith(date)
-  );
-  const exercises = getExercisesByUser(user).filter(e =>
-    !date || String(e.date).startsWith(date)
-  );
-
-  return { foods, exercises };
-}
-
-/**
- * Retorna TODOS los registros de un usuario (historial completo).
- */
-function getAllEntries(user) {
-  if (!user) return { error: 'user requerido' };
-  return {
-    foods:     getFoodsByUser(user),
-    exercises: getExercisesByUser(user)
-  };
-}
-
-// ════════════════════════════════════════════════════════════════
-//  DELETE
-// ════════════════════════════════════════════════════════════════
-
-/**
- * Elimina una fila de una hoja por ID (columna 1).
- */
-function deleteRow(sheetName, id) {
-  if (!id) return { error: 'id requerido' };
-  const sheet = getSheet(sheetName);
-  const data  = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(id)) {
-      sheet.deleteRow(i + 1);
-      return { success: true, deleted: id };
-    }
-  }
-
-  return { error: 'Registro no encontrado', id };
-}
-
-// ════════════════════════════════════════════════════════════════
-//  RESPONSE BUILDER
-// ════════════════════════════════════════════════════════════════
-
-/**
- * Construye la respuesta JSON con cabeceras CORS para
- * permitir peticiones desde cualquier origen (GitHub Pages, etc.)
- */
-function buildResponse(data) {
-  const output = ContentService
-    .createTextOutput(JSON.stringify(data))
+function json(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
-  return output;
-}
-
-// ════════════════════════════════════════════════════════════════
-//  UTILITY — ejecutar manualmente para probar
-// ════════════════════════════════════════════════════════════════
-
-/**
- * Función de prueba: ejecútala manualmente desde el editor
- * para verificar que todo funciona antes de desplegar.
- */
-function testSetup() {
-  Logger.log('=== TEST SETUP ===');
-
-  // Crear/acceder al spreadsheet
-  const ss = getSpreadsheet();
-  Logger.log('Spreadsheet: ' + ss.getName() + ' (' + ss.getId() + ')');
-  Logger.log('URL: ' + ss.getUrl());
-
-  // Guardar perfiles de prueba
-  const resA = saveProfile('A', { name:'Ana García', sex:'female', age:28, weight:62, height:165, activity:1.55 });
-  const resB = saveProfile('B', { name:'Carlos López', sex:'male', age:34, weight:80, height:178, activity:1.725 });
-  Logger.log('Perfil A: ' + JSON.stringify(resA));
-  Logger.log('Perfil B: ' + JSON.stringify(resB));
-
-  // Agregar comida de prueba
-  const food = addFood('A', {
-    id: 'test_' + Date.now(),
-    date: new Date().toISOString().split('T')[0],
-    name: 'Avena con frutas',
-    ingredients: 'Avena 60g, Plátano 1, Leche 200ml',
-    calories: 340,
-    portions: 1,
-    totalCalories: 340,
-    meal: 'Desayuno'
-  });
-  Logger.log('Food added: ' + JSON.stringify(food));
-
-  // Agregar ejercicio de prueba
-  const ex = addExercise('A', {
-    id: 'test_ex_' + Date.now(),
-    date: new Date().toISOString().split('T')[0],
-    name: 'Carrera',
-    duration: 30,
-    caloriesBurned: 280,
-    intensity: 'Media',
-    notes: '5km aprox.'
-  });
-  Logger.log('Exercise added: ' + JSON.stringify(ex));
-
-  // Leer todo
-  const entries = getEntries('A', new Date().toISOString().split('T')[0]);
-  Logger.log('Entries today: ' + JSON.stringify(entries));
-
-  Logger.log('=== TEST COMPLETADO ✓ ===');
-  Logger.log('Copia este ID de Spreadsheet: ' + ss.getId());
 }
