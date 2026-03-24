@@ -8,8 +8,8 @@
 #                        e.g. https://script.google.com/macros/s/AKfy.../exec
 #
 #  OPTIONAL SECRETS (extend as needed):
-#    PROFILE_A_NAME    → Display name for User A  (default: "Usuario A")
-#    PROFILE_B_NAME    → Display name for User B  (default: "Usuario B")
+#    PROFILE_A_NAME  or PROFILE_NAME_A  → Display name for User A (default: "Usuario A")
+#    PROFILE_B_NAME  or PROFILE_NAME_B  → Display name for User B (default: "Usuario B")
 #
 #  HOW IT WORKS:
 #    1. Checks out your source (index.html has __APPS_SCRIPT_URL__ as placeholder)
@@ -75,35 +75,49 @@ jobs:
       # ── 5. Inject optional profile names ──────────────────────
       - name: Inject optional profile names
         env:
-          PROFILE_A_NAME: ${{ secrets.PROFILE_A_NAME }}
-          PROFILE_B_NAME: ${{ secrets.PROFILE_B_NAME }}
+          # Both naming conventions supported:
+          #   PROFILE_A_NAME  and  PROFILE_B_NAME   (documented standard)
+          #   PROFILE_NAME_A  and  PROFILE_NAME_B   (alternate order)
+          PROFILE_A_NAME:  ${{ secrets.PROFILE_A_NAME  || secrets.PROFILE_NAME_A }}
+          PROFILE_B_NAME:  ${{ secrets.PROFILE_B_NAME  || secrets.PROFILE_NAME_B }}
         run: |
-          # Only replace if secrets are actually set (non-empty)
           if [ -n "$PROFILE_A_NAME" ]; then
             sed -i "s|__PROFILE_A_NAME__|${PROFILE_A_NAME}|g" dist/index.html
-            echo "✓ Profile A name injected"
+            echo "✓ Profile A name injected: $PROFILE_A_NAME"
           else
             sed -i "s|__PROFILE_A_NAME__|Usuario A|g" dist/index.html
+            echo "ℹ Profile A using default: Usuario A"
           fi
           if [ -n "$PROFILE_B_NAME" ]; then
             sed -i "s|__PROFILE_B_NAME__|${PROFILE_B_NAME}|g" dist/index.html
-            echo "✓ Profile B name injected"
+            echo "✓ Profile B name injected: $PROFILE_B_NAME"
           else
             sed -i "s|__PROFILE_B_NAME__|Usuario B|g" dist/index.html
+            echo "ℹ Profile B using default: Usuario B"
           fi
 
       # ── 6. Security audit — ensure no tokens leaked ────────────
       - name: Security audit — verify no raw tokens in dist
         run: |
           echo "Scanning dist/index.html for unreplaced tokens..."
+          FAILED=0
           if grep -q "__APPS_SCRIPT_URL__" dist/index.html; then
             echo "::error::SECURITY: Token __APPS_SCRIPT_URL__ was NOT replaced. Check that the secret is set."
-            exit 1
+            FAILED=1
           fi
+          if grep -q "__PROFILE_A_NAME__" dist/index.html; then
+            echo "::error::Token __PROFILE_A_NAME__ was NOT replaced. Check PROFILE_A_NAME or PROFILE_NAME_A secret."
+            FAILED=1
+          fi
+          if grep -q "__PROFILE_B_NAME__" dist/index.html; then
+            echo "::error::Token __PROFILE_B_NAME__ was NOT replaced. Check PROFILE_B_NAME or PROFILE_NAME_B secret."
+            FAILED=1
+          fi
+          if [ "$FAILED" -eq 1 ]; then exit 1; fi
           if grep -qE "script\.google\.com/macros/s/[A-Za-z0-9_-]{10,}" dist/index.html; then
-            echo "::notice::Apps Script URL is present in the artifact (expected, it was injected from secret)."
+            echo "::notice::Apps Script URL present in artifact (expected — injected from secret)."
           fi
-          echo "✓ Security audit passed"
+          echo "✓ Security audit passed — all tokens replaced"
 
       # ── 7. Copy any extra static assets (favicon, etc.) ────────
       - name: Copy static assets
