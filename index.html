@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VitaTrack — Tracker de Salud</title>
+  <title>VitaTrack — Health Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -20,1483 +20,494 @@
       --ice:        #7DF9FF;
       --ice-dim:    rgba(125,249,255,0.10);
       --amber:      #FFB84D;
-      --amber-dim:  rgba(255,184,77,0.12);
-      --danger:     #FF5A5A;
-      --danger-dim: rgba(255,90,90,0.12);
-      --text:       #F0F4FF;
-      --text-2:     #7A8499;
-      --text-3:     #3D4558;
-      --shadow:     0 8px 32px rgba(0,0,0,0.6);
-      --r:          14px;
-      --r-sm:       8px;
-      --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+      --rose:       #FF4D88;
+      --text-1:     #F9FAFB;
+      --text-2:     #9CA3AF;
+      --text-3:     #4B5563;
+      --font-main: 'Syne', sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
     }
 
-    /* ── RESET & BASE ──────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { font-size: 16px; scroll-behavior: smooth; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg);
-      color: var(--text);
-      font-family: 'Syne', sans-serif;
-      min-height: 100vh;
+      color: var(--text-1);
+      font-family: var(--font-main);
+      line-height: 1.5;
+      padding-bottom: 5rem;
       overflow-x: hidden;
     }
-    button { cursor: pointer; border: none; background: none; font-family: inherit; }
-    input, select, textarea {
-      font-family: 'IBM Plex Mono', monospace;
-      outline: none;
-      border: 1px solid var(--border);
-      background: var(--bg-input);
-      color: var(--text);
-      border-radius: var(--r-sm);
-      padding: 0.65rem 0.9rem;
-      font-size: 0.9rem;
-      width: 100%;
-      transition: border-color var(--transition);
-    }
-    input:focus, select:focus, textarea:focus { border-color: var(--lime); }
-    label { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-2); display: block; margin-bottom: 0.35rem; }
-    h1,h2,h3,h4 { font-family: 'Syne', sans-serif; }
-    .mono { font-family: 'IBM Plex Mono', monospace; }
 
-    /* ── BACKGROUND GRID ───────────────────────────────────────── */
-    body::before {
-      content: '';
-      position: fixed; inset: 0; z-index: 0;
-      background-image:
-        linear-gradient(rgba(181,255,77,0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(181,255,77,0.025) 1px, transparent 1px);
-      background-size: 40px 40px;
-      pointer-events: none;
+    /* ── LAYOUT ────────────────────────────────────────────────── */
+    .container { max-width: 480px; margin: 0 auto; padding: 1.25rem; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .brand { font-weight: 800; font-size: 1.4rem; letter-spacing: -0.02em; color: var(--lime); }
+    
+    .sync-badge {
+      font-family: var(--font-mono); font-size: 0.65rem; padding: 0.25rem 0.6rem;
+      border-radius: 20px; background: var(--bg-card); border: 1px solid var(--border);
     }
+    .sync-badge.online { color: var(--lime); border-color: var(--lime-dim); }
+    .sync-badge.syncing { color: var(--amber); }
 
-    /* ── LAYOUT WRAPPER ────────────────────────────────────────── */
-    .app { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; padding-bottom: 6rem; }
+    /* ── PROFILE SELECTOR ──────────────────────────────────────── */
+    .profile-tabs {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
+      background: var(--bg-card); padding: 0.35rem; border-radius: 12px; margin-bottom: 1.5rem;
+    }
+    .p-tab {
+      background: transparent; border: none; color: var(--text-2); padding: 0.6rem;
+      border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s;
+    }
+    .p-tab.active { background: var(--bg-input); color: var(--lime); border: 1px solid var(--border-act); }
 
-    /* ── HEADER ────────────────────────────────────────────────── */
-    .header {
-      position: sticky; top: 0; z-index: 100;
-      background: rgba(6,10,18,0.92);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border);
-      padding: 0.85rem 1.25rem;
-      display: flex; align-items: center; justify-content: space-between;
+    /* ── CARDS & FORMS ─────────────────────────────────────────── */
+    .card { background: var(--bg-card); border-radius: 20px; padding: 1.5rem; border: 1px solid var(--border); margin-bottom: 1.25rem; }
+    .form-card { background: var(--bg-input); border-radius: 16px; padding: 1.25rem; margin-bottom: 1rem; }
+    .form-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em; }
+    
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-size: 0.75rem; color: var(--text-2); margin-bottom: 0.4rem; font-weight: 600; }
+    input, select {
+      width: 100%; background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.75rem; color: var(--text-1); font-family: var(--font-mono); font-size: 0.9rem;
     }
-    .logo {
-      font-size: 1.1rem; font-weight: 800; letter-spacing: -0.02em;
-      display: flex; align-items: center; gap: 0.5rem;
-    }
-    .logo-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--lime);
-      box-shadow: 0 0 12px var(--lime);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%,100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.8); }
-    }
-    .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+    input:focus { outline: none; border-color: var(--lime); }
 
-    /* ── PROFILE SWITCHER ──────────────────────────────────────── */
-    .profile-switcher {
-      display: flex;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 50px;
-      padding: 3px;
-      gap: 2px;
-    }
-    .profile-btn {
-      padding: 0.3rem 0.9rem;
-      border-radius: 50px;
-      font-size: 0.78rem;
-      font-weight: 700;
-      color: var(--text-2);
-      transition: all var(--transition);
-      letter-spacing: 0.05em;
-    }
-    .profile-btn.active {
-      background: var(--lime);
-      color: #060A12;
-    }
-
-    /* Settings button */
-    .btn-icon {
-      width: 36px; height: 36px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      color: var(--text-2);
-      transition: all var(--transition);
-      font-size: 1rem;
-    }
-    .btn-icon:hover { border-color: var(--lime); color: var(--lime); }
-
-    /* ── DATE BAR ──────────────────────────────────────────────── */
-    .date-bar {
-      padding: 0.75rem 1.25rem;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .date-display {
-      font-size: 0.82rem; color: var(--text-2);
-      font-family: 'IBM Plex Mono', monospace;
-    }
-    .profile-name-display {
-      font-size: 0.9rem; font-weight: 700;
-      color: var(--lime);
-    }
-
-    /* ── TABS ──────────────────────────────────────────────────── */
-    .tabs {
-      display: flex;
-      padding: 0 1.25rem;
-      gap: 0;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 0;
-    }
-    .tab-btn {
-      flex: 1;
-      padding: 0.75rem 0.25rem;
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--text-3);
-      border-bottom: 2px solid transparent;
-      transition: all var(--transition);
-      text-align: center;
-    }
-    .tab-btn.active { color: var(--lime); border-bottom-color: var(--lime); }
-    .tab-btn:hover:not(.active) { color: var(--text-2); }
-
-    /* ── TAB CONTENT ───────────────────────────────────────────── */
-    .tab-content { display: none; padding: 1.25rem; }
-    .tab-content.active { display: block; }
-
-    /* ── METRIC CARDS ──────────────────────────────────────────── */
-    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
-    .metric-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 1.1rem;
-      position: relative;
-      overflow: hidden;
-      transition: border-color var(--transition);
-    }
-    .metric-card:hover { border-color: rgba(255,255,255,0.12); }
-    .metric-card::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0;
-      height: 2px;
-    }
-    .metric-card.lime::before  { background: var(--lime); }
-    .metric-card.ice::before   { background: var(--ice); }
-    .metric-card.amber::before { background: var(--amber); }
-    .metric-card.danger::before{ background: var(--danger); }
-    .metric-label {
-      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--text-2); margin-bottom: 0.4rem;
-    }
-    .metric-value {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 1.9rem; font-weight: 600; line-height: 1;
-      letter-spacing: -0.03em;
-    }
-    .metric-value.lime   { color: var(--lime); }
-    .metric-value.ice    { color: var(--ice); }
-    .metric-value.amber  { color: var(--amber); }
-    .metric-value.danger { color: var(--danger); }
-    .metric-sub { font-size: 0.72rem; color: var(--text-2); margin-top: 0.3rem; }
-    .metric-badge {
-      display: inline-block;
-      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em;
-      padding: 0.2rem 0.5rem;
-      border-radius: 50px;
-      margin-top: 0.35rem;
-    }
-    .badge-normal   { background: var(--lime-dim);   color: var(--lime); }
-    .badge-low      { background: var(--ice-dim);    color: var(--ice); }
-    .badge-high     { background: var(--amber-dim);  color: var(--amber); }
-    .badge-obese    { background: var(--danger-dim); color: var(--danger); }
-
-    /* ── CALORIE BALANCE CARD ──────────────────────────────────── */
-    .balance-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 1.25rem;
-      margin-bottom: 1rem;
-    }
-    .balance-title { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-2); margin-bottom: 1rem; }
-    .balance-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-    .balance-item { text-align: center; flex: 1; }
-    .balance-item-label { font-size: 0.68rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.25rem; }
-    .balance-item-val {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 1.3rem; font-weight: 600;
-    }
-    .balance-divider { width: 1px; height: 40px; background: var(--border); }
-    .balance-net {
-      margin-top: 0.75rem;
-      padding-top: 0.75rem;
-      border-top: 1px solid var(--border);
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .balance-net-label { font-size: 0.78rem; font-weight: 700; color: var(--text-2); }
-    .balance-net-val {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 1.1rem; font-weight: 600;
-    }
-    .net-positive { color: var(--amber); }
-    .net-negative { color: var(--lime); }
-
-    /* Progress bar */
-    .progress-wrap { margin-top: 0.75rem; }
-    .progress-label-row { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-2); margin-bottom: 0.4rem; }
-    .progress-bar {
-      height: 6px; border-radius: 3px;
-      background: rgba(255,255,255,0.08);
-      overflow: hidden;
-    }
-    .progress-fill {
-      height: 100%; border-radius: 3px;
-      background: var(--lime);
-      transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
-    }
-    .progress-fill.over { background: var(--danger); }
-
-    /* ── SECTION HEADERS ───────────────────────────────────────── */
-    .section-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 0.75rem; margin-top: 1.25rem;
-    }
-    .section-title { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-2); }
-    .btn-add-small {
-      font-size: 0.72rem; font-weight: 700;
-      color: var(--lime);
-      display: flex; align-items: center; gap: 0.3rem;
-      padding: 0.3rem 0.7rem;
-      border: 1px solid var(--border-act);
-      border-radius: 50px;
-      transition: all var(--transition);
-    }
-    .btn-add-small:hover { background: var(--lime-dim); }
-
-    /* ── LOG ENTRIES ───────────────────────────────────────────── */
-    .log-list { display: flex; flex-direction: column; gap: 0.5rem; }
-    .log-entry {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--r-sm);
-      padding: 0.85rem 1rem;
-      display: flex; align-items: center; justify-content: space-between;
-      animation: slideIn 0.2s ease;
-    }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(-6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    .log-entry-main { flex: 1; min-width: 0; }
-    .log-entry-name { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .log-entry-sub  { font-size: 0.72rem; color: var(--text-2); margin-top: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .log-entry-cal  {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.95rem; font-weight: 600;
-      text-align: right; margin-left: 0.75rem; white-space: nowrap;
-    }
-    .cal-food    { color: var(--amber); }
-    .cal-burn    { color: var(--lime); }
-    .btn-delete {
-      color: var(--text-3);
-      font-size: 1rem; padding: 0.2rem 0.3rem; margin-left: 0.5rem;
-      border-radius: 4px;
-      transition: color var(--transition);
-    }
-    .btn-delete:hover { color: var(--danger); }
-    .empty-state {
-      text-align: center; padding: 2rem 1rem;
-      color: var(--text-3); font-size: 0.85rem;
-    }
-    .empty-icon { font-size: 2rem; margin-bottom: 0.5rem; }
-
-    /* ── FORMS ─────────────────────────────────────────────────── */
-    .form-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 1.25rem;
-    }
-    .form-title { font-size: 1rem; font-weight: 800; margin-bottom: 1.25rem; }
     .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-    .form-group { margin-bottom: 0.85rem; }
-    .form-group:last-child { margin-bottom: 0; }
+
     .btn-primary {
-      width: 100%;
-      padding: 0.85rem;
-      background: var(--lime);
-      color: #060A12;
-      font-family: 'Syne', sans-serif;
-      font-size: 0.9rem;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      border-radius: var(--r-sm);
-      transition: all var(--transition);
-      margin-top: 1rem;
+      width: 100%; background: var(--lime); color: var(--bg); border: none;
+      padding: 0.9rem; border-radius: 12px; font-weight: 800; font-size: 0.9rem;
+      cursor: pointer; transition: 0.2s;
     }
-    .btn-primary:hover { background: #c8ff66; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(181,255,77,0.3); }
-    .btn-primary:active { transform: translateY(0); }
-    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-    .btn-secondary {
-      width: 100%;
-      padding: 0.75rem;
-      background: transparent;
-      color: var(--text-2);
-      font-family: 'Syne', sans-serif;
-      font-size: 0.85rem;
-      font-weight: 700;
-      border: 1px solid var(--border);
-      border-radius: var(--r-sm);
-      transition: all var(--transition);
-      margin-top: 0.5rem;
-    }
-    .btn-secondary:hover { border-color: var(--border-act); color: var(--lime); }
+    .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
 
-    /* ── HISTORY ───────────────────────────────────────────────── */
-    .history-date-group { margin-bottom: 1.25rem; }
-    .history-date-label {
-      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--text-2);
-      padding: 0.5rem 0; border-bottom: 1px solid var(--border);
-      margin-bottom: 0.5rem;
-    }
+    /* ── SUMMARY SECTION ──────────────────────────────────────── */
+    .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .balance-card { padding: 1.25rem; border-radius: 16px; border: 1px solid var(--border); }
+    .balance-card.cal { background: var(--lime-dim); border-color: var(--lime-dim); }
+    .balance-title { font-size: 0.7rem; font-weight: 700; color: var(--text-2); text-transform: uppercase; margin-bottom: 0.25rem; }
+    .balance-val { font-size: 1.5rem; font-weight: 800; font-family: var(--font-mono); }
 
-    /* ── MODAL ─────────────────────────────────────────────────── */
-    .modal-overlay {
-      position: fixed; inset: 0; z-index: 200;
-      background: rgba(6,10,18,0.85);
-      backdrop-filter: blur(8px);
-      display: flex; align-items: flex-end;
-      opacity: 0; pointer-events: none;
-      transition: opacity var(--transition);
+    /* ── LISTS ─────────────────────────────────────────────────── */
+    .entry-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.8rem 0; border-bottom: 1px solid var(--border);
     }
-    .modal-overlay.open { opacity: 1; pointer-events: all; }
-    .modal {
-      width: 100%; max-width: 480px; margin: 0 auto;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--r) var(--r) 0 0;
-      padding: 1.5rem 1.25rem 2rem;
-      transform: translateY(100%);
-      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
-      max-height: 90vh;
-      overflow-y: auto;
-    }
-    .modal-overlay.open .modal { transform: translateY(0); }
-    .modal-handle {
-      width: 40px; height: 4px; border-radius: 2px;
-      background: var(--border); margin: 0 auto 1.25rem;
-    }
-    .modal-title { font-size: 1.1rem; font-weight: 800; margin-bottom: 1.5rem; }
-    .modal-close {
-      position: absolute; top: 1.25rem; right: 1.25rem;
-      font-size: 1.2rem; color: var(--text-2);
-      width: 32px; height: 32px;
-      display: flex; align-items: center; justify-content: center;
-      border-radius: 50%;
-      transition: all var(--transition);
-    }
-    .modal-close:hover { color: var(--danger); background: var(--danger-dim); }
-    .modal { position: relative; }
+    .entry-info div:first-child { font-weight: 700; font-size: 0.95rem; }
+    .entry-info div:last-child { font-size: 0.75rem; color: var(--text-2); }
+    .entry-cal { font-family: var(--font-mono); font-weight: 600; font-size: 0.9rem; }
+    .entry-cal.neg { color: var(--rose); }
 
-    /* ── SETTINGS MODAL ────────────────────────────────────────── */
-    .settings-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
-    .settings-tab {
-      flex: 1; padding: 0.5rem;
-      border: 1px solid var(--border);
-      border-radius: var(--r-sm);
-      font-size: 0.82rem; font-weight: 700;
-      color: var(--text-2);
-      text-align: center;
-      transition: all var(--transition);
-    }
-    .settings-tab.active { background: var(--lime-dim); border-color: var(--border-act); color: var(--lime); }
-
-    /* Config URL */
-    .config-banner {
-      background: var(--ice-dim);
-      border: 1px solid rgba(125,249,255,0.2);
-      border-radius: var(--r-sm);
-      padding: 0.85rem 1rem;
-      margin-bottom: 1.25rem;
-      font-size: 0.8rem;
-      color: var(--ice);
-      line-height: 1.5;
-    }
-    .config-banner strong { font-weight: 700; }
-    .config-banner a { color: var(--lime); }
-
-    /* ── TOAST ─────────────────────────────────────────────────── */
-    #toast {
-      position: fixed; bottom: 5.5rem; left: 50%; transform: translateX(-50%) translateY(20px);
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 50px;
-      padding: 0.6rem 1.2rem;
-      font-size: 0.82rem; font-weight: 600;
-      box-shadow: var(--shadow);
-      opacity: 0; pointer-events: none;
-      transition: all 0.3s ease;
-      z-index: 300;
-      white-space: nowrap;
-    }
-    #toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-    #toast.success { border-color: var(--border-act); color: var(--lime); }
-    #toast.error   { border-color: rgba(255,90,90,0.4); color: var(--danger); }
-    #toast.loading { border-color: rgba(125,249,255,0.3); color: var(--ice); }
-
-    /* ── NAV BAR ───────────────────────────────────────────────── */
+    /* ── NAV & SETTINGS ────────────────────────────────────────── */
     .bottom-nav {
-      position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-      background: rgba(6,10,18,0.95);
-      backdrop-filter: blur(16px);
-      border-top: 1px solid var(--border);
-      display: flex;
-      max-width: 480px; margin: 0 auto;
+      position: fixed; bottom: 0; left: 0; right: 0; background: rgba(6,10,18,0.8);
+      backdrop-filter: blur(12px); border-top: 1px solid var(--border);
+      display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 0.75rem; z-index: 100;
     }
-    .nav-btn {
-      flex: 1; padding: 0.75rem 0.25rem;
-      display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
-      color: var(--text-3);
-      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-      transition: color var(--transition);
-    }
+    .nav-btn { background: none; border: none; color: var(--text-3); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; cursor: pointer; }
     .nav-btn.active { color: var(--lime); }
-    .nav-btn svg { width: 22px; height: 22px; }
 
-    /* ── STATUS INDICATOR ──────────────────────────────────────── */
-    .sync-status {
-      display: flex; align-items: center; gap: 0.4rem;
-      font-size: 0.65rem; font-family: 'IBM Plex Mono', monospace;
-      color: var(--text-3);
-    }
-    .sync-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--text-3);
-    }
-    .sync-dot.online  { background: var(--lime); box-shadow: 0 0 6px var(--lime); }
-    .sync-dot.syncing { background: var(--ice); animation: pulse 1s ease-in-out infinite; }
-    .sync-dot.error   { background: var(--danger); }
-
-
-    /* ── SYNC LOCKED BANNER ────────────────────────────────────── */
-    .sync-locked-banner {
-      display: flex; gap: 0.85rem; align-items: flex-start;
-      background: var(--lime-dim);
-      border: 1px solid var(--border-act);
-      border-radius: var(--r-sm);
-      padding: 0.9rem 1rem;
-      margin-bottom: 1.25rem;
-    }
-    .sync-lock-icon { font-size: 1.4rem; line-height: 1; flex-shrink: 0; }
-    .sync-lock-title {
-      font-size: 0.82rem; font-weight: 700;
-      color: var(--lime); margin-bottom: 0.3rem;
-    }
-    .sync-lock-sub {
-      font-size: 0.75rem; color: var(--text-2); line-height: 1.5;
-    }
-
-    /* ── SCROLLBAR ─────────────────────────────────────────────── */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-    /* ── SKELETON LOADER ───────────────────────────────────────── */
-    .skeleton {
-      background: linear-gradient(90deg, var(--bg-card) 25%, rgba(255,255,255,0.04) 50%, var(--bg-card) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-      border-radius: var(--r-sm);
-      height: 1em;
-    }
-    @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-
-    /* ── RESPONSIVE TWEAKS ─────────────────────────────────────── */
-    @media (min-width: 480px) {
-      .bottom-nav { left: 50%; right: auto; width: 480px; transform: translateX(-50%); }
+    .hidden { display: none; }
+    #toast {
+      position: fixed; top: 1rem; left: 50%; transform: translateX(-50%);
+      background: var(--lime); color: var(--bg); padding: 0.5rem 1rem;
+      border-radius: 20px; font-weight: 700; font-size: 0.8rem; z-index: 200;
+      opacity: 0; transition: 0.3s; pointer-events: none;
     }
   </style>
 </head>
 <body>
 
-<!-- ── HEADER ───────────────────────────────────────────────────── -->
-<div class="app">
-  <header class="header">
-    <div class="logo">
-      <span class="logo-dot"></span>
-      VitaTrack
-    </div>
-    <div class="header-actions">
-      <div class="profile-switcher">
-        <button class="profile-btn active" id="btnProfileA" onclick="switchProfile('A')">A</button>
-        <button class="profile-btn" id="btnProfileB" onclick="switchProfile('B')">B</button>
-      </div>
-      <div class="sync-status" id="syncStatus">
-        <span class="sync-dot" id="syncDot"></span>
-        <span id="syncLabel">local</span>
-      </div>
-      <button class="btn-icon" onclick="openSettings()" title="Configuración">⚙</button>
-    </div>
-  </header>
+<div id="toast">Cargando...</div>
 
-  <!-- Date / Profile label -->
-  <div class="date-bar">
-    <span class="date-display" id="dateDisplay"></span>
-    <span class="profile-name-display" id="profileNameDisplay">__PROFILE_A_NAME__</span>
+<div class="container">
+  <div class="header">
+    <div class="brand">VITATRACK</div>
+    <div id="syncBadge" class="sync-badge">Offline</div>
   </div>
 
-  <!-- ── NAVIGATION TABS ─────────────────────────────────────── -->
-  <div class="tabs">
-    <button class="tab-btn active" id="tab-dashboard" onclick="switchTab('dashboard')">Dashboard</button>
-    <button class="tab-btn" id="tab-comidas"   onclick="switchTab('comidas')">Comidas</button>
-    <button class="tab-btn" id="tab-ejercicio" onclick="switchTab('ejercicio')">Ejercicio</button>
-    <button class="tab-btn" id="tab-historial" onclick="switchTab('historial')">Historial</button>
+  <div class="profile-tabs">
+    <button id="tabA" class="p-tab active" onclick="switchProfile('A')">PERFIL A</button>
+    <button id="tabB" class="p-tab" onclick="switchProfile('B')">PERFIL B</button>
   </div>
 
-  <!-- ── DASHBOARD TAB ──────────────────────────────────────────── -->
-  <div class="tab-content active" id="content-dashboard">
-    <div class="metrics-grid">
-      <div class="metric-card lime">
-        <div class="metric-label">IMC</div>
-        <div class="metric-value lime mono" id="bmiValue">--.-</div>
-        <div class="metric-badge" id="bmiCategory">—</div>
-      </div>
-      <div class="metric-card ice">
-        <div class="metric-label">TDEE</div>
-        <div class="metric-value ice mono" id="tdeeValue">----</div>
-        <div class="metric-sub">kcal / día</div>
-      </div>
-      <div class="metric-card amber">
-        <div class="metric-label">Ingerido</div>
-        <div class="metric-value amber mono" id="caloriesIn">0</div>
-        <div class="metric-sub">kcal hoy</div>
-      </div>
-      <div class="metric-card lime">
-        <div class="metric-label">Quemado</div>
-        <div class="metric-value lime mono" id="caloriesBurned">0</div>
-        <div class="metric-sub">kcal ejercicio</div>
+  <div id="view-today">
+    <div class="card" id="summaryCard">
+      <div id="profileSnippet">
+        </div>
+      <div class="balance-grid">
+        <div class="balance-card cal">
+          <div class="balance-title">Restantes</div>
+          <div class="balance-val" id="calBalance">0</div>
+        </div>
+        <div class="balance-card">
+          <div class="balance-title">Consumidas</div>
+          <div class="balance-val" id="calIn">0</div>
+        </div>
       </div>
     </div>
 
-    <!-- Calorie balance -->
-    <div class="balance-card">
-      <div class="balance-title">Balance Calórico Hoy</div>
-      <div class="balance-row">
-        <div class="balance-item">
-          <div class="balance-item-label">Objetivo</div>
-          <div class="balance-item-val ice mono" id="balanceTDEE">----</div>
-        </div>
-        <div class="balance-divider"></div>
-        <div class="balance-item">
-          <div class="balance-item-label">Consumido</div>
-          <div class="balance-item-val amber mono" id="balanceIn">0</div>
-        </div>
-        <div class="balance-divider"></div>
-        <div class="balance-item">
-          <div class="balance-item-label">Ejercicio</div>
-          <div class="balance-item-val lime mono" id="balanceBurned">0</div>
-        </div>
-      </div>
-      <div class="progress-wrap">
-        <div class="progress-label-row">
-          <span>Calorías consumidas</span>
-          <span id="progressPct">0%</span>
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill" id="progressFill" style="width:0%"></div>
-        </div>
-      </div>
-      <div class="balance-net">
-        <span class="balance-net-label">Balance neto</span>
-        <span class="balance-net-val mono" id="netCalories">0 kcal</span>
-      </div>
-    </div>
-
-    <!-- Profile snippet -->
-    <div class="balance-card" id="profileSnippet">
-      <div class="balance-title">Perfil — sin configurar</div>
-      <div style="font-size:0.82rem;color:var(--text-2);line-height:1.6;">
-        Configura tu perfil para ver IMC y TDEE personalizados.
-      </div>
-      <button class="btn-secondary" style="width:auto;padding:0.5rem 1.2rem;margin-top:0.75rem;" onclick="openSettings()">
-        Configurar perfil →
-      </button>
-    </div>
-  </div>
-
-  <!-- ── COMIDAS TAB ─────────────────────────────────────────────── -->
-  <div class="tab-content" id="content-comidas">
     <div class="form-card">
       <div class="form-title">➕ Registrar Comida</div>
       <div class="form-group">
-        <label>Nombre del plato / alimento</label>
-        <input type="text" id="foodName" placeholder="Ej: Ensalada César" />
+        <label>Buscar Alimento (Open Food Facts)</label>
+        <div style="display: flex; gap: 0.5rem;">
+          <input type="text" id="foodSearch" placeholder="Avena, Pollo, Galletas..." />
+          <button class="btn-primary" style="width: auto; padding: 0 1rem;" onclick="searchFoodAPI()">🔍</button>
+        </div>
+      </div>
+      <div class="form-group" id="apiResultsWrapper" style="display:none;">
+        <label>Selecciona resultado</label>
+        <select id="apiResults" onchange="selectApiProduct()"></select>
       </div>
       <div class="form-group">
-        <label>Ingredientes (descripción)</label>
-        <textarea id="foodIngredients" rows="2" placeholder="Ej: Lechuga 100g, Pollo 80g, Aderezo 20ml" style="resize:vertical"></textarea>
+        <label>Alimento</label>
+        <input type="text" id="foodName" placeholder="Ej: Cena" />
       </div>
       <div class="form-grid-2">
         <div class="form-group">
-          <label>Calorías (kcal)</label>
-          <input type="number" id="foodCalories" placeholder="350" min="0" />
+          <label>Cantidad</label>
+          <input type="number" id="foodQty" value="100" oninput="recalcFoodKcal()" />
         </div>
         <div class="form-group">
-          <label>Porciones</label>
-          <input type="number" id="foodPortions" placeholder="1" min="0.25" step="0.25" value="1" />
+          <label>Unidad</label>
+          <select id="foodUnit" onchange="recalcFoodKcal()">
+            <option value="g">Gramos (g)</option>
+            <option value="ml">Mililitros (ml)</option>
+            <option value="unidad">Unidad / Porción</option>
+          </select>
         </div>
       </div>
       <div class="form-group">
-        <label>Meal</label>
-        <select id="foodMeal">
-          <option value="Desayuno">🌅 Desayuno</option>
-          <option value="Almuerzo">☀️ Almuerzo</option>
-          <option value="Cena">🌙 Cena</option>
-          <option value="Merienda">🍎 Merienda</option>
-        </select>
+        <label>Calorías (kcal)</label>
+        <input type="number" id="foodCalories" placeholder="0" />
       </div>
-      <button class="btn-primary" onclick="submitFood()">Guardar comida</button>
+      <button class="btn-primary" onclick="submitFood()">Guardar Comida</button>
     </div>
 
-    <div class="section-header">
-      <span class="section-title">Registros de hoy</span>
-    </div>
-    <div class="log-list" id="todayFoodList"></div>
-  </div>
-
-  <!-- ── EJERCICIO TAB ───────────────────────────────────────────── -->
-  <div class="tab-content" id="content-ejercicio">
     <div class="form-card">
       <div class="form-title">🏃 Registrar Ejercicio</div>
       <div class="form-group">
-        <label>Tipo de actividad</label>
-        <input type="text" id="exName" placeholder="Ej: Correr, Pesas, Ciclismo" />
-      </div>
-      <div class="form-grid-2">
-        <div class="form-group">
-          <label>Duración (min)</label>
-          <input type="number" id="exDuration" placeholder="30" min="1" />
-        </div>
-        <div class="form-group">
-          <label>Calorías quemadas</label>
-          <input type="number" id="exCalories" placeholder="200" min="0" />
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Intensidad</label>
-        <select id="exIntensity">
-          <option value="Baja">🟢 Baja</option>
-          <option value="Media" selected>🟡 Media</option>
-          <option value="Alta">🔴 Alta</option>
+        <label>Actividad</label>
+        <select id="exName" onchange="autoCalcExercise()">
+          <option value="caminar" data-met="3.5">🚶 Caminar</option>
+          <option value="correr" data-met="8.0">🏃 Correr</option>
+          <option value="pesas" data-met="5.0">🏋️ Pesas / Fuerza</option>
+          <option value="ciclismo" data-met="7.5">🚲 Ciclismo</option>
+          <option value="natacion" data-met="7.0">🏊 Natación</option>
+          <option value="yoga" data-met="2.5">🧘 Yoga</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>Notas (opcional)</label>
-        <input type="text" id="exNotes" placeholder="Series, sets, sensaciones..." />
-      </div>
-      <button class="btn-primary" onclick="submitExercise()">Guardar ejercicio</button>
-    </div>
-
-    <div class="section-header">
-      <span class="section-title">Ejercicios de hoy</span>
-    </div>
-    <div class="log-list" id="todayExList"></div>
-  </div>
-
-  <!-- ── HISTORIAL TAB ───────────────────────────────────────────── -->
-  <div class="tab-content" id="content-historial">
-    <div id="historialContent">
-      <div class="empty-state">
-        <div class="empty-icon">📋</div>
-        <div>El historial aparecerá aquí</div>
-      </div>
-    </div>
-  </div>
-</div><!-- end .app -->
-
-<!-- ── BOTTOM NAV ──────────────────────────────────────────────── -->
-<nav class="bottom-nav">
-  <button class="nav-btn active" id="nav-dashboard" onclick="switchTab('dashboard')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-      <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-    </svg>
-    Dashboard
-  </button>
-  <button class="nav-btn" id="nav-comidas" onclick="switchTab('comidas')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
-      <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
-    </svg>
-    Comidas
-  </button>
-  <button class="nav-btn" id="nav-ejercicio" onclick="switchTab('ejercicio')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M18 3a3 3 0 0 0-3 3l-7 7.5M9 11.5l-2 2M15 20l-6-6m0 0a5 5 0 1 1-7.07-7.07"/>
-    </svg>
-    Ejercicio
-  </button>
-  <button class="nav-btn" id="nav-historial" onclick="switchTab('historial')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-    </svg>
-    Historial
-  </button>
-</nav>
-
-<!-- ── SETTINGS MODAL ─────────────────────────────────────────── -->
-<div class="modal-overlay" id="settingsModal">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <button class="modal-close" onclick="closeSettings()">✕</button>
-    <div class="modal-title">Configuración</div>
-
-    <div id="syncConfigBlock">
-      <!-- Populated by renderSyncBlock() at runtime -->
-    </div>
-
-    <div class="settings-tabs">
-      <button class="settings-tab active" id="stab-A" onclick="switchSettingsProfile('A')">__PROFILE_A_NAME__</button>
-      <button class="settings-tab" id="stab-B" onclick="switchSettingsProfile('B')">__PROFILE_B_NAME__</button>
-    </div>
-
-    <div id="settingsForm">
-      <div class="form-group">
-        <label>Nombre</label>
-        <input type="text" id="sName" placeholder="Ej: María" />
-      </div>
       <div class="form-grid-2">
         <div class="form-group">
-          <label>Sexo</label>
-          <select id="sSex">
-            <option value="male">Hombre</option>
-            <option value="female">Mujer</option>
-          </select>
+          <label>Tiempo (min)</label>
+          <input type="number" id="exDuration" value="30" oninput="autoCalcExercise()" />
         </div>
         <div class="form-group">
-          <label>Edad (años)</label>
-          <input type="number" id="sAge" placeholder="30" min="10" max="100" />
+          <label>Intensidad</label>
+          <select id="exIntensity" onchange="autoCalcExercise()">
+            <option value="0.8">Baja</option>
+            <option value="1.0" selected>Media</option>
+            <option value="1.3">Alta / Vigorosa</option>
+          </select>
         </div>
+      </div>
+      <div class="form-group">
+        <label>Calorías Quemadas</label>
+        <input type="number" id="exCalories" placeholder="0" />
+      </div>
+      <button class="btn-primary" onclick="submitExercise()">Guardar Ejercicio</button>
+    </div>
+
+    <div class="card">
+      <div class="form-title">Registros de Hoy</div>
+      <div id="entryList">
+        </div>
+    </div>
+  </div>
+
+  <div id="view-settings" class="hidden">
+    <div class="card">
+      <div class="form-title">Configuración Perfil <span id="setProfLabel">A</span></div>
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="setNombre" placeholder="Tu nombre" />
       </div>
       <div class="form-grid-2">
         <div class="form-group">
           <label>Peso (kg)</label>
-          <input type="number" id="sWeight" placeholder="70" min="20" step="0.1" />
+          <input type="number" id="setPeso" step="0.1" oninput="autoCalcExercise()" />
         </div>
         <div class="form-group">
           <label>Altura (cm)</label>
-          <input type="number" id="sHeight" placeholder="170" min="100" />
+          <input type="number" id="setAltura" />
+        </div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label>Edad</label>
+          <input type="number" id="setEdad" />
+        </div>
+        <div class="form-group">
+          <label>Género</label>
+          <select id="setGenero">
+            <option value="M">Masculino</option>
+            <option value="F">Femenino</option>
+          </select>
         </div>
       </div>
       <div class="form-group">
-        <label>Nivel de actividad</label>
-        <select id="sActivity">
-          <option value="1.2">Sedentario (poco o ningún ejercicio)</option>
-          <option value="1.375">Ligeramente activo (1-3 días/semana)</option>
-          <option value="1.55" selected>Moderadamente activo (3-5 días/semana)</option>
-          <option value="1.725">Muy activo (6-7 días/semana)</option>
-          <option value="1.9">Extremadamente activo (físico + trabajo)</option>
+        <label>Nivel de Actividad</label>
+        <select id="setActividad">
+          <option value="1.2">Sedentario</option>
+          <option value="1.375">Ligero (1-3 días)</option>
+          <option value="1.55">Moderado (3-5 días)</option>
+          <option value="1.725">Fuerte (6-7 días)</option>
         </select>
       </div>
-      <button class="btn-primary" onclick="saveSettings()">Guardar perfil</button>
+      <button class="btn-primary" onclick="saveSettings()">Guardar Perfil</button>
     </div>
   </div>
 </div>
 
-<!-- ── TOAST ──────────────────────────────────────────────────── -->
-<div id="toast"></div>
+<div class="bottom-nav">
+  <button class="nav-btn active" onclick="nav('today')">Hoy</button>
+  <button class="nav-btn" onclick="nav('settings')">Ajustes</button>
+  <button class="nav-btn" onclick="forceSync()">Sincronizar</button>
+</div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     JAVASCRIPT
-═══════════════════════════════════════════════════════════════ -->
 <script>
-/* ── CONFIGURATION ──────────────────────────────────────────── */
-// __APPS_SCRIPT_URL__ is replaced at build-time by GitHub Actions.
-// If the token is still present (local dev), we fall back to localStorage.
-const _BAKED_URL = '__APPS_SCRIPT_URL__';
-const _IS_CI     = !_BAKED_URL.startsWith('__'); // true only after CI substitution
-
+/* ── CONFIG & STATE ────────────────────────────────────────── */
 const CONFIG = {
-  scriptUrl:      _IS_CI ? _BAKED_URL : (localStorage.getItem('vita_scriptUrl') || ''),
-  isPreconfigured: _IS_CI,   // locks the URL field in the Settings UI
-  timeout:        8000
+  scriptUrl: 'TU_WEB_APP_URL_AQUI' // URL de tu Code.gs publicado
 };
 
-/* ── CI-BAKED PROFILE NAMES ─────────────────────────────────── */
-// These are injected by GitHub Actions from secrets.
-// They are the source-of-truth for display names and are NEVER
-// stored in localStorage or Google Sheets — they live only in the
-// deployed HTML so they can't be overwritten by stale data.
-const PROFILE_NAMES = {
-  A: '__PROFILE_A_NAME__',
-  B: '__PROFILE_B_NAME__'
-};
-
-/* ── STATE ──────────────────────────────────────────────────── */
-const state = {
-  profile: 'A',                   // active profile
-  settingsProfile: 'A',           // which profile is being edited
-  today: new Date().toISOString().split('T')[0],
+let state = {
+  profile: 'A',
   profiles: {
-    A: loadProfileFromStorage('A'),
-    B: loadProfileFromStorage('B')
+    A: { name: '', weight: 0, height: 0, age: 0, gender: 'M', activity: 1.2, configured: false },
+    B: { name: '', weight: 0, height: 0, age: 0, gender: 'M', activity: 1.2, configured: false }
   },
-  foods:     { A: [], B: [] },
-  exercises: { A: [], B: [] },
-  isSyncing: false
+  entries: { A: [], B: [] }
 };
 
-/* ── LOCAL STORAGE HELPERS ──────────────────────────────────── */
-function loadProfileFromStorage(user) {
-  const raw     = localStorage.getItem(`vita_profile_${user}`);
-  const stored  = raw ? JSON.parse(raw) : {};
-  // Name: prefer user-set override, else CI-baked name, else generic fallback.
-  // Health data (age/weight/height/sex/activity): from storage or blank defaults.
-  return {
-    name:           stored.nameOverride || PROFILE_NAMES[user],
-    nameOverride:   stored.nameOverride || '',   // tracks if user explicitly changed it
-    sex:            stored.sex      || 'male',
-    age:            stored.age      || 0,
-    weight:         stored.weight   || 0,
-    height:         stored.height   || 0,
-    activity:       stored.activity || 1.55,
-    configured:     !!(stored.age && stored.weight && stored.height)
-  };
-}
-function saveProfileToStorage(user, data) {
-  // Only store health data + optional name override, never the CI-baked default name.
-  const toStore = {
-    nameOverride: data.nameOverride || '',
-    sex:          data.sex,
-    age:          data.age,
-    weight:       data.weight,
-    height:       data.height,
-    activity:     data.activity,
-    configured:   !!(data.age && data.weight && data.height)
-  };
-  localStorage.setItem(`vita_profile_${user}`, JSON.stringify(toStore));
-}
-function loadEntriesFromStorage(user) {
-  const foods = JSON.parse(localStorage.getItem(`vita_foods_${user}`) || '[]');
-  const exercises = JSON.parse(localStorage.getItem(`vita_exercises_${user}`) || '[]');
-  state.foods[user] = foods;
-  state.exercises[user] = exercises;
-}
-function saveEntriesToStorage(user) {
-  localStorage.setItem(`vita_foods_${user}`, JSON.stringify(state.foods[user]));
-  localStorage.setItem(`vita_exercises_${user}`, JSON.stringify(state.exercises[user]));
-}
+let currentKcalPer100 = 0;
 
-/* ── CALCULATIONS ───────────────────────────────────────────── */
-function calculateBMI(weight, height) {
-  if (!weight || !height) return null;
-  return weight / Math.pow(height / 100, 2);
-}
-
-function calculateBMR(profile) {
-  const { weight, height, age, sex } = profile;
-  if (!weight || !height || !age) return null;
-  // Mifflin-St Jeor
-  const base = (10 * weight) + (6.25 * height) - (5 * age);
-  return sex === 'male' ? base + 5 : base - 161;
-}
-
-function calculateTDEE(profile) {
-  const bmr = calculateBMR(profile);
-  if (!bmr) return null;
-  return Math.round(bmr * (parseFloat(profile.activity) || 1.55));
-}
-
-function getBMICategory(bmi) {
-  if (bmi < 18.5)      return { label: 'Bajo peso', cls: 'badge-low' };
-  if (bmi < 25)        return { label: 'Normal',    cls: 'badge-normal' };
-  if (bmi < 30)        return { label: 'Sobrepeso', cls: 'badge-high' };
-  return               { label: 'Obesidad',    cls: 'badge-obese' };
-}
-
-/* ── GOOGLE APPS SCRIPT API ─────────────────────────────────── */
-async function apiCall(params) {
-  const url = CONFIG.scriptUrl;
-  if (!url) return null;
-
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), CONFIG.timeout);
-
+/* ── API NUTRICIÓN (OPEN FOOD FACTS) ────────────────────────── */
+async function searchFoodAPI() {
+  const query = document.getElementById('foodSearch').value.trim();
+  if (!query) return;
+  
+  showToast('Buscando...');
   try {
-    setSyncStatus('syncing');
-    const res = await fetch(url, {
-      method:  'POST',
-      mode:    'no-cors',          // Apps Script deployed as "Anyone" (anonymous)
-      headers: { 'Content-Type': 'text/plain' },
-      body:    JSON.stringify(params),
-      signal:  ctrl.signal
-    });
-    clearTimeout(timer);
-    setSyncStatus('online');
-    return true;
-  } catch (err) {
-    clearTimeout(timer);
-    setSyncStatus('error');
-    return null;
-  }
-}
-
-async function apiGet(params) {
-  const url = CONFIG.scriptUrl;
-  if (!url) return null;
-
-  const query = new URLSearchParams(params).toString();
-  const ctrl  = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), CONFIG.timeout);
-
-  try {
-    setSyncStatus('syncing');
-    const res  = await fetch(`${url}?${query}`, { signal: ctrl.signal });
+    const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=8`);
     const data = await res.json();
-    clearTimeout(timer);
-    setSyncStatus('online');
-    return data;
-  } catch (err) {
-    clearTimeout(timer);
-    setSyncStatus('error');
-    return null;
-  }
-}
-
-/* ── SYNC LOGIC ─────────────────────────────────────────────── */
-async function syncProfile(user) {
-  if (!CONFIG.scriptUrl) return;
-  const data = await apiGet({ action: 'getProfile', user });
-  if (data && data.profile && data.profile.age) {
-    // Only adopt Sheets data if it represents a REAL configured profile (age > 0).
-    // Never overwrite name — that comes from CI secrets, not Sheets.
-    const remote = data.profile;
-    const merged = {
-      ...state.profiles[user],          // keep current (has CI name)
-      nameOverride: remote.nameOverride || state.profiles[user].nameOverride || '',
-      sex:          remote.sex      || state.profiles[user].sex,
-      age:          remote.age      || state.profiles[user].age,
-      weight:       remote.weight   || state.profiles[user].weight,
-      height:       remote.height   || state.profiles[user].height,
-      activity:     remote.activity || state.profiles[user].activity,
-      configured:   true
-    };
-    // Recompute display name after merge
-    merged.name = merged.nameOverride || PROFILE_NAMES[user];
-    state.profiles[user] = merged;
-    saveProfileToStorage(user, merged);
-  }
-}
-
-async function syncTodayEntries(user) {
-  if (!CONFIG.scriptUrl) return;
-  const data = await apiGet({ action: 'getEntries', user, date: state.today });
-  if (data) {
-    if (data.foods)     state.foods[user]     = data.foods;
-    if (data.exercises) state.exercises[user] = data.exercises;
-    saveEntriesToStorage(user);
-  }
-}
-
-async function pushEntry(type, user, entry) {
-  return await apiCall({ action: type === 'food' ? 'addFood' : 'addExercise', user, entry });
-}
-
-async function pushDelete(type, user, id) {
-  return await apiCall({ action: type === 'food' ? 'deleteFood' : 'deleteExercise', user, id });
-}
-
-async function pushProfile(user, profile) {
-  return await apiCall({ action: 'saveProfile', user, profile });
-}
-
-/* ── SYNC STATUS UI ─────────────────────────────────────────── */
-function setSyncStatus(status) {
-  const dot   = document.getElementById('syncDot');
-  const label = document.getElementById('syncLabel');
-  dot.className = `sync-dot ${status}`;
-  label.textContent = status === 'online' ? 'sync' : status === 'syncing' ? '...' : status === 'error' ? 'err' : 'local';
-}
-
-/* ── PROFILE SWITCH ─────────────────────────────────────────── */
-async function switchProfile(user) {
-  state.profile = user;
-  document.getElementById('btnProfileA').classList.toggle('active', user === 'A');
-  document.getElementById('btnProfileB').classList.toggle('active', user === 'B');
-  // Load local cache immediately for snappy UI
-  loadEntriesFromStorage(user);
-  renderAll();
-  // Then sync from Sheets in background
-  if (CONFIG.scriptUrl) {
-    await syncTodayEntries(user);
-    renderAll();  // re-render with fresh Sheets data
-  }
-  showToast(`${state.profiles[user].name}`, 'success');
-  // Nudge if this profile is also unconfigured
-  if (!state.profiles[user].configured) showUnconfiguredBanner();
-}
-
-/* ── TAB SWITCH ─────────────────────────────────────────────── */
-function switchTab(tab) {
-  ['dashboard','comidas','ejercicio','historial'].forEach(t => {
-    document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
-    document.getElementById(`content-${t}`).classList.toggle('active', t === tab);
-    const navBtn = document.getElementById(`nav-${t}`);
-    if (navBtn) navBtn.classList.toggle('active', t === tab);
-  });
-  if (tab === 'historial') renderHistorial();
-}
-
-/* ── FOOD SUBMIT ─────────────────────────────────────────────── */
-async function submitFood() {
-  const name = document.getElementById('foodName').value.trim();
-  const cals = parseFloat(document.getElementById('foodCalories').value);
-  if (!name || isNaN(cals)) { showToast('Nombre y calorías son requeridos', 'error'); return; }
-
-  const entry = {
-    id:          Date.now().toString(),
-    date:        state.today,
-    name,
-    ingredients: document.getElementById('foodIngredients').value.trim(),
-    calories:    cals,
-    portions:    parseFloat(document.getElementById('foodPortions').value) || 1,
-    meal:        document.getElementById('foodMeal').value
-  };
-  entry.totalCalories = Math.round(entry.calories * entry.portions);
-
-  state.foods[state.profile].push(entry);
-  saveEntriesToStorage(state.profile);
-
-  if (CONFIG.scriptUrl) {
-    await pushEntry('food', state.profile, entry);
-  }
-
-  // Clear form
-  ['foodName','foodIngredients','foodCalories'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('foodPortions').value = '1';
-
-  renderAll();
-  showToast('Comida registrada ✓', 'success');
-}
-
-/* ── EXERCISE SUBMIT ────────────────────────────────────────── */
-async function submitExercise() {
-  const name = document.getElementById('exName').value.trim();
-  const cals = parseFloat(document.getElementById('exCalories').value);
-  if (!name || isNaN(cals)) { showToast('Actividad y calorías son requeridas', 'error'); return; }
-
-  const entry = {
-    id:           Date.now().toString(),
-    date:         state.today,
-    name,
-    duration:     parseInt(document.getElementById('exDuration').value) || 0,
-    caloriesBurned: cals,
-    intensity:    document.getElementById('exIntensity').value,
-    notes:        document.getElementById('exNotes').value.trim()
-  };
-
-  state.exercises[state.profile].push(entry);
-  saveEntriesToStorage(state.profile);
-
-  if (CONFIG.scriptUrl) {
-    await pushEntry('exercise', state.profile, entry);
-  }
-
-  ['exName','exDuration','exCalories','exNotes'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('exIntensity').value = 'Media';
-
-  renderAll();
-  showToast('Ejercicio registrado ✓', 'success');
-}
-
-/* ── DELETE ENTRIES ─────────────────────────────────────────── */
-async function deleteFood(id) {
-  state.foods[state.profile] = state.foods[state.profile].filter(f => f.id !== id);
-  saveEntriesToStorage(state.profile);
-  if (CONFIG.scriptUrl) await pushDelete('food', state.profile, id);
-  renderAll();
-  showToast('Entrada eliminada', 'success');
-}
-
-async function deleteExercise(id) {
-  state.exercises[state.profile] = state.exercises[state.profile].filter(e => e.id !== id);
-  saveEntriesToStorage(state.profile);
-  if (CONFIG.scriptUrl) await pushDelete('exercise', state.profile, id);
-  renderAll();
-  showToast('Ejercicio eliminado', 'success');
-}
-
-/* ── RENDER ALL ─────────────────────────────────────────────── */
-function renderAll() {
-  renderDashboard();
-  renderFoodList();
-  renderExerciseList();
-  renderDateBar();
-}
-
-function renderDateBar() {
-  const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
-  document.getElementById('dateDisplay').textContent =
-    new Date(state.today + 'T12:00:00').toLocaleDateString('es-MX', opts);
-  document.getElementById('profileNameDisplay').textContent =
-    state.profiles[state.profile].name;
-}
-
-/* ── RENDER DASHBOARD ───────────────────────────────────────── */
-function renderDashboard() {
-  const prof   = state.profiles[state.profile];
-  const todayFoods = state.foods[state.profile].filter(f => f.date === state.today);
-  const todayEx    = state.exercises[state.profile].filter(e => e.date === state.today);
-  const calsIn     = todayFoods.reduce((s,f) => s + (f.totalCalories || f.calories), 0);
-  const calsBurned = todayEx.reduce((s,e) => s + e.caloriesBurned, 0);
-
-  // BMI
-  const bmi = calculateBMI(prof.weight, prof.height);
-  const bmiEl  = document.getElementById('bmiValue');
-  const bmiCat = document.getElementById('bmiCategory');
-  if (bmi) {
-    bmiEl.textContent = bmi.toFixed(1);
-    const cat = getBMICategory(bmi);
-    bmiCat.textContent  = cat.label;
-    bmiCat.className    = `metric-badge ${cat.cls}`;
-  } else {
-    bmiEl.textContent = '--.-';
-    bmiCat.textContent = '—'; bmiCat.className = 'metric-badge';
-  }
-
-  // TDEE
-  const tdee = calculateTDEE(prof);
-  document.getElementById('tdeeValue').textContent = tdee ? tdee.toLocaleString() : '----';
-  document.getElementById('balanceTDEE').textContent = tdee ? tdee.toLocaleString() : '----';
-
-  // Calories
-  document.getElementById('caloriesIn').textContent    = calsIn.toLocaleString();
-  document.getElementById('caloriesBurned').textContent = calsBurned.toLocaleString();
-  document.getElementById('balanceIn').textContent      = calsIn.toLocaleString();
-  document.getElementById('balanceBurned').textContent  = calsBurned.toLocaleString();
-
-  // Progress bar
-  if (tdee) {
-    const pct  = Math.min(Math.round((calsIn / tdee) * 100), 200);
-    const fill = document.getElementById('progressFill');
-    fill.style.width = `${Math.min(pct, 100)}%`;
-    fill.className   = `progress-fill${pct > 100 ? ' over' : ''}`;
-    document.getElementById('progressPct').textContent = `${pct}%`;
-  }
-
-  // Net calories
-  const net     = calsIn - calsBurned - (tdee || 0);
-  const netEl   = document.getElementById('netCalories');
-  netEl.textContent  = `${net > 0 ? '+' : ''}${net.toLocaleString()} kcal`;
-  netEl.className    = `balance-net-val mono ${net > 0 ? 'net-positive' : 'net-negative'}`;
-
-  // Profile snippet
-  const snip = document.getElementById('profileSnippet');
-  if (prof.weight && prof.height && prof.age) {
-    snip.innerHTML = `
-      <div class="balance-title">Perfil — ${prof.name}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;font-size:0.82rem;">
-        <div><span style="color:var(--text-2)">Peso: </span><span class="mono">${prof.weight} kg</span></div>
-        <div><span style="color:var(--text-2)">Altura: </span><span class="mono">${prof.height} cm</span></div>
-        <div><span style="color:var(--text-2)">Edad: </span><span class="mono">${prof.age} años</span></div>
-        <div><span style="color:var(--text-2)">Sexo: </span><span class="mono">${prof.sex === 'male' ? 'Hombre' : 'Mujer'}</span></div>
-        <div><span style="color:var(--text-2)">BMR: </span><span class="mono" style="color:var(--ice)">${Math.round(calculateBMR(prof))} kcal</span></div>
-        <div><span style="color:var(--text-2)">TDEE: </span><span class="mono" style="color:var(--lime)">${tdee} kcal</span></div>
-      </div>
-      <button class="btn-secondary" style="width:auto;padding:0.4rem 1rem;margin-top:0.75rem;font-size:0.78rem;" onclick="openSettings()">Editar perfil</button>
-    `;
-  }
-}
-
-/* ── RENDER FOOD LIST ───────────────────────────────────────── */
-function renderFoodList() {
-  const list   = document.getElementById('todayFoodList');
-  const today  = state.foods[state.profile].filter(f => f.date === state.today);
-  if (!today.length) {
-    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🍽️</div><div>Sin comidas registradas hoy</div></div>`;
-    return;
-  }
-  list.innerHTML = today.map(f => `
-    <div class="log-entry">
-      <div class="log-entry-main">
-        <div class="log-entry-name">${f.meal ? `<span style="font-size:.75em;opacity:.6;">${f.meal} · </span>` : ''}${escHtml(f.name)}</div>
-        <div class="log-entry-sub">${f.portions !== 1 ? `${f.portions}x · ` : ''}${escHtml(f.ingredients || '')}</div>
-      </div>
-      <div class="log-entry-cal cal-food">+${(f.totalCalories||f.calories).toLocaleString()} kcal</div>
-      <button class="btn-delete" onclick="deleteFood('${f.id}')" title="Eliminar">✕</button>
-    </div>
-  `).join('');
-}
-
-/* ── RENDER EXERCISE LIST ───────────────────────────────────── */
-function renderExerciseList() {
-  const list  = document.getElementById('todayExList');
-  const today = state.exercises[state.profile].filter(e => e.date === state.today);
-  if (!today.length) {
-    list.innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div><div>Sin ejercicios registrados hoy</div></div>`;
-    return;
-  }
-  list.innerHTML = today.map(e => `
-    <div class="log-entry">
-      <div class="log-entry-main">
-        <div class="log-entry-name">${escHtml(e.name)} <span style="font-size:.75em;opacity:.5;">${e.intensity || ''}</span></div>
-        <div class="log-entry-sub">${e.duration ? e.duration + ' min' : ''}${e.notes ? ' · ' + escHtml(e.notes) : ''}</div>
-      </div>
-      <div class="log-entry-cal cal-burn">−${e.caloriesBurned.toLocaleString()} kcal</div>
-      <button class="btn-delete" onclick="deleteExercise('${e.id}')" title="Eliminar">✕</button>
-    </div>
-  `).join('');
-}
-
-/* ── RENDER HISTORIAL ───────────────────────────────────────── */
-function renderHistorial() {
-  const container = document.getElementById('historialContent');
-  const allFoods  = state.foods[state.profile];
-  const allEx     = state.exercises[state.profile];
-
-  // Group by date
-  const dates = [...new Set([
-    ...allFoods.map(f => f.date),
-    ...allEx.map(e => e.date)
-  ])].sort((a,b) => b.localeCompare(a));
-
-  if (!dates.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div>Sin historial todavía</div></div>`;
-    return;
-  }
-
-  container.innerHTML = dates.map(date => {
-    const foods = allFoods.filter(f => f.date === date);
-    const exs   = allEx.filter(e => e.date === date);
-    const calsIn    = foods.reduce((s,f) => s + (f.totalCalories||f.calories), 0);
-    const calsBurn  = exs.reduce((s,e) => s + e.caloriesBurned, 0);
-    const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('es-MX', { weekday:'short', day:'numeric', month:'short' });
-
-    return `
-      <div class="history-date-group">
-        <div class="history-date-label" style="display:flex;justify-content:space-between;align-items:center;">
-          <span>${dateLabel}${date === state.today ? ' · <span style="color:var(--lime)">HOY</span>' : ''}</span>
-          <span class="mono" style="font-size:.72rem;">
-            <span style="color:var(--amber)">+${calsIn.toLocaleString()}</span>
-            ${calsBurn ? `<span style="color:var(--lime)"> −${calsBurn.toLocaleString()}</span>` : ''}
-          </span>
-        </div>
-        <div class="log-list">
-          ${foods.map(f => `
-            <div class="log-entry">
-              <div class="log-entry-main">
-                <div class="log-entry-name">${f.meal ? `<span style="font-size:.7em;opacity:.5">${f.meal}·</span> ` : ''}${escHtml(f.name)}</div>
-                <div class="log-entry-sub">${escHtml(f.ingredients||'')}</div>
-              </div>
-              <div class="log-entry-cal cal-food">+${(f.totalCalories||f.calories).toLocaleString()}</div>
-            </div>`).join('')}
-          ${exs.map(e => `
-            <div class="log-entry">
-              <div class="log-entry-main">
-                <div class="log-entry-name">🏃 ${escHtml(e.name)}</div>
-                <div class="log-entry-sub">${e.duration ? e.duration+'min' : ''} ${e.intensity||''}</div>
-              </div>
-              <div class="log-entry-cal cal-burn">−${e.caloriesBurned.toLocaleString()}</div>
-            </div>`).join('')}
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-/* ── SETTINGS MODAL ─────────────────────────────────────────── */
-function renderSyncBlock() {
-  const el = document.getElementById('syncConfigBlock');
-  if (!el) return;
-  if (CONFIG.isPreconfigured) {
-    el.innerHTML = `
-      <div class="sync-locked-banner">
-        <span class="sync-lock-icon">🔒</span>
-        <div>
-          <div class="sync-lock-title">Sincronización configurada via CI/CD</div>
-          <div class="sync-lock-sub">La URL de Apps Script fue inyectada de forma segura durante el despliegue. No es visible ni editable desde la app.</div>
-        </div>
-      </div>`;
-  } else {
-    el.innerHTML = `
-      <div class="config-banner">
-        <strong>🔗 Google Sheets Backend:</strong> Pega tu URL de Apps Script para activar sincronización en la nube.
-        <br><br>Si no configuras URL, los datos se guardan <strong>localmente</strong> (localStorage).
-      </div>
-      <div class="form-group">
-        <label>URL Google Apps Script</label>
-        <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec"
-          value="${CONFIG.scriptUrl}" />
-      </div>
-      <button class="btn-secondary" style="margin-top:0;margin-bottom:1.25rem;" onclick="testConnection()">Probar conexión</button>`;
-  }
-}
-function openSettings() {
-  renderSyncBlock();
-  loadSettingsForm(state.settingsProfile);
-  document.getElementById('settingsModal').classList.add('open');
-}
-function closeSettings() {
-  document.getElementById('settingsModal').classList.remove('open');
-}
-function switchSettingsProfile(user) {
-  state.settingsProfile = user;
-  document.getElementById('stab-A').classList.toggle('active', user === 'A');
-  document.getElementById('stab-B').classList.toggle('active', user === 'B');
-  loadSettingsForm(user);
-}
-function loadSettingsForm(user) {
-  const p = state.profiles[user];
-  const nameInput = document.getElementById('sName');
-  // Show override name if user set one; keep field EMPTY otherwise so CI name
-  // shows as placeholder, making clear it is already set.
-  nameInput.value       = p.nameOverride || '';
-  nameInput.placeholder = PROFILE_NAMES[user];
-  document.getElementById('sSex').value      = p.sex      || 'male';
-  // Only pre-fill health numbers if the profile has been configured (not 0).
-  document.getElementById('sAge').value      = p.age      || '';
-  document.getElementById('sWeight').value   = p.weight   || '';
-  document.getElementById('sHeight').value   = p.height   || '';
-  document.getElementById('sActivity').value = p.activity || '1.55';
-}
-async function saveSettings() {
-  const user = state.settingsProfile;
-  const typedName   = document.getElementById('sName').value.trim();
-  // Only store as override if user typed something different from the CI-baked name
-  const nameOverride = (typedName && typedName !== PROFILE_NAMES[user]) ? typedName : '';
-  const profile = {
-    name:         nameOverride || PROFILE_NAMES[user],
-    nameOverride,
-    sex:          document.getElementById('sSex').value,
-    age:          parseFloat(document.getElementById('sAge').value)      || 0,
-    weight:       parseFloat(document.getElementById('sWeight').value)   || 0,
-    height:       parseFloat(document.getElementById('sHeight').value)   || 0,
-    activity:     parseFloat(document.getElementById('sActivity').value) || 1.55,
-    configured:   !!(parseFloat(document.getElementById('sAge').value) &&
-                     parseFloat(document.getElementById('sWeight').value) &&
-                     parseFloat(document.getElementById('sHeight').value))
-  };
-  state.profiles[user] = profile;
-  saveProfileToStorage(user, profile);
-
-  // Save script URL — only if NOT pre-configured by CI
-  if (!CONFIG.isPreconfigured) {
-    const urlEl = document.getElementById('scriptUrl');
-    if (urlEl) {
-      const url = urlEl.value.trim();
-      CONFIG.scriptUrl = url;
-      localStorage.setItem('vita_scriptUrl', url);
+    const select = document.getElementById('apiResults');
+    select.innerHTML = '<option value="">-- Selecciona producto --</option>';
+    
+    if (data.products && data.products.length > 0) {
+      data.products.forEach(p => {
+        const kcal = p.nutriments?.['energy-kcal_100g'] || 0;
+        if(kcal > 0) {
+          const opt = document.createElement('option');
+          opt.value = kcal;
+          opt.textContent = `${p.product_name} (${Math.round(kcal)} kcal/100g)`;
+          opt.setAttribute('data-name', p.product_name);
+          select.appendChild(opt);
+        }
+      });
+      document.getElementById('apiResultsWrapper').style.display = 'block';
+      showToast('¡Listo!');
     }
-  }
+  } catch (e) { showToast('Error API'); }
+}
 
-  if (CONFIG.scriptUrl) {
-    await pushProfile(user, profile);
-  }
+function selectApiProduct() {
+  const sel = document.getElementById('apiResults');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt.value) return;
+  
+  currentKcalPer100 = parseFloat(opt.value);
+  document.getElementById('foodName').value = opt.getAttribute('data-name');
+  recalcFoodKcal();
+}
 
-  closeSettings();
+function recalcFoodKcal() {
+  const qty = parseFloat(document.getElementById('foodQty').value) || 0;
+  const unit = document.getElementById('foodUnit').value;
+  let factor = (unit === 'unidad') ? 50 : qty; // si es unidad asumimos peso promedio 50g
+  document.getElementById('foodCalories').value = Math.round((currentKcalPer100 / 100) * factor);
+}
+
+/* ── MOTOR DE EJERCICIO ────────────────────────────────────── */
+function autoCalcExercise() {
+  const selectEx = document.getElementById('exName');
+  const duration = parseFloat(document.getElementById('exDuration').value) || 0;
+  const intensity = parseFloat(document.getElementById('exIntensity').value);
+  const met = parseFloat(selectEx.options[selectEx.selectedIndex].getAttribute('data-met'));
+  
+  // Peso del perfil actual
+  const weight = state.profiles[state.profile].weight || 70;
+  const burned = (met * intensity * 3.5 * weight / 200) * duration;
+  
+  document.getElementById('exCalories').value = Math.round(burned);
+}
+
+/* ── LÓGICA DE NEGOCIO / SYNC ──────────────────────────────── */
+function switchProfile(p) {
+  state.profile = p;
+  document.getElementById('tabA').className = p === 'A' ? 'p-tab active' : 'p-tab';
+  document.getElementById('tabB').className = p === 'B' ? 'p-tab active' : 'p-tab';
   renderAll();
-  showToast(`Perfil ${user} guardado ✓`, 'success');
 }
 
-async function testConnection() {
-  const urlEl = document.getElementById('scriptUrl');
-  const url   = urlEl ? urlEl.value.trim() : CONFIG.scriptUrl;
-  if (!url) { showToast('Ingresa una URL primero', 'error'); return; }
-  showToast('Probando conexión…', 'loading');
-  // Temporarily set for the ping without persisting
-  const prev = CONFIG.scriptUrl;
-  CONFIG.scriptUrl = url;
-  const result = await apiGet({ action: 'ping' });
-  CONFIG.scriptUrl = prev || url;
-  if (result && result.status === 'ok') {
-    showToast('Conexión exitosa ✓', 'success');
-  } else {
-    showToast('No se pudo conectar. Verifica la URL.', 'error');
-  }
-}
-
-/* ── TOAST ──────────────────────────────────────────────────── */
-let toastTimer;
-function showToast(msg, type = 'success') {
-  const el = document.getElementById('toast');
-  clearTimeout(toastTimer);
-  el.textContent = msg;
-  el.className = `show ${type}`;
-  toastTimer = setTimeout(() => { el.className = ''; }, 2800);
-}
-
-/* ── UTILS ──────────────────────────────────────────────────── */
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-/* ── CLOSE MODAL ON OVERLAY CLICK ───────────────────────────── */
-document.getElementById('settingsModal').addEventListener('click', function(e) {
-  if (e.target === this) closeSettings();
-});
-
-/* ── INIT ───────────────────────────────────────────────────── */
-async function init() {
-  // 1. Load whatever is in localStorage first (instant render)
-  loadEntriesFromStorage('A');
-  loadEntriesFromStorage('B');
-
-  if (CONFIG.scriptUrl) {
-    // 2. Sync profiles from Sheets — cross-device source of truth
-    //    This runs BEFORE first render so the UI is already correct.
-    setSyncStatus('syncing');
-    await Promise.all([syncProfile('A'), syncProfile('B')]);
-    // 3. Now load today's entries for the active profile
-    await syncTodayEntries(state.profile);
-    setSyncStatus('online');
-  } else {
-    setSyncStatus('local');
-  }
-
-  // 4. Render with fresh data
+function saveSettings() {
+  const p = state.profile;
+  state.profiles[p] = {
+    name: document.getElementById('setNombre').value,
+    weight: parseFloat(document.getElementById('setPeso').value),
+    height: parseFloat(document.getElementById('setAltura').value),
+    age: parseInt(document.getElementById('setEdad').value),
+    gender: document.getElementById('setGenero').value,
+    activity: parseFloat(document.getElementById('setActividad').value),
+    configured: true
+  };
+  localStorage.setItem('vt_profiles', JSON.stringify(state.profiles));
+  syncProfileToCloud(p);
+  nav('today');
   renderAll();
-
-  // 5. Nudge unconfigured profiles to open settings
-  const prof = state.profiles[state.profile];
-  if (!prof.configured) {
-    showUnconfiguredBanner();
-  }
 }
 
-function showUnconfiguredBanner() {
-  const snip = document.getElementById('profileSnippet');
-  if (!snip) return;
-  snip.innerHTML = `
-    <div class="balance-title" style="color:var(--amber);">⚠ Perfil sin configurar</div>
-    <div style="font-size:.82rem;color:var(--text-2);line-height:1.6;margin-bottom:.75rem;">
-      Configura tu peso, altura y edad para calcular IMC y TDEE personalizados.
-      Los datos se sincronizarán en todos tus dispositivos via Google Sheets.
+function submitFood() {
+  const entry = {
+    id: Date.now(),
+    type: 'food',
+    name: document.getElementById('foodName').value || 'Comida',
+    cal: parseInt(document.getElementById('foodCalories').value) || 0,
+    ts: new Date().toISOString()
+  };
+  addEntry(entry);
+}
+
+function submitExercise() {
+  const entry = {
+    id: Date.now(),
+    type: 'exercise',
+    name: document.getElementById('exName').value,
+    cal: -(parseInt(document.getElementById('exCalories').value) || 0),
+    ts: new Date().toISOString()
+  };
+  addEntry(entry);
+}
+
+function addEntry(entry) {
+  state.entries[state.profile].unshift(entry);
+  localStorage.setItem(`vt_entries_${state.profile}`, JSON.stringify(state.entries[state.profile]));
+  saveEntryToCloud(entry);
+  renderAll();
+  // Limpiar campos
+  document.getElementById('foodName').value = '';
+  document.getElementById('foodCalories').value = '';
+}
+
+/* ── RENDERIZADO ───────────────────────────────────────────── */
+function renderAll() {
+  const p = state.profiles[state.profile];
+  const entries = state.entries[state.profile];
+  
+  // 1. Cálculos de Salud
+  let tdee = 2000;
+  if (p.configured) {
+    const bmr = (p.gender === 'M') 
+      ? (10 * p.weight + 6.25 * p.height - 5 * p.age + 5)
+      : (10 * p.weight + 6.25 * p.height - 5 * p.age - 161);
+    tdee = Math.round(bmr * p.activity);
+    
+    const imc = (p.weight / ((p.height/100)**2)).toFixed(1);
+    document.getElementById('profileSnippet').innerHTML = `
+      <div style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-2); margin-bottom:0.5rem;">
+        IMC: ${imc} • TDEE: ${tdee} kcal
+      </div>
+    `;
+  }
+
+  // 2. Balance
+  const calIn = entries.reduce((acc, curr) => acc + (curr.cal > 0 ? curr.cal : 0), 0);
+  const calOut = entries.reduce((acc, curr) => acc + (curr.cal < 0 ? Math.abs(curr.cal) : 0), 0);
+  const balance = tdee - calIn + calOut;
+
+  document.getElementById('calIn').textContent = calIn;
+  document.getElementById('calBalance').textContent = balance;
+  document.getElementById('calBalance').style.color = balance < 0 ? 'var(--rose)' : 'var(--lime)';
+
+  // 3. Lista
+  const list = document.getElementById('entryList');
+  list.innerHTML = entries.map(e => `
+    <div class="entry-item">
+      <div class="entry-info">
+        <div>${e.name}</div>
+        <div>${new Date(e.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+      </div>
+      <div class="entry-cal ${e.cal < 0 ? '' : 'neg'}">
+        ${e.cal > 0 ? '+' : ''}${e.cal} kcal
+      </div>
     </div>
-    <button class="btn-primary" style="padding:.6rem 1.2rem;width:auto;" onclick="openSettings()">
-      Configurar ahora →
-    </button>`;
+  `).join('');
 }
 
-init();
+/* ── NAVEGACIÓN Y TOAST ────────────────────────────────────── */
+function nav(view) {
+  document.getElementById('view-today').classList.toggle('hidden', view !== 'today');
+  document.getElementById('view-settings').classList.toggle('hidden', view !== 'settings');
+  document.querySelectorAll('.nav-btn').forEach((b, i) => {
+    b.classList.toggle('active', (i === 0 && view === 'today') || (i === 1 && view === 'settings'));
+  });
+  if(view === 'settings') {
+    const p = state.profiles[state.profile];
+    document.getElementById('setProfLabel').textContent = state.profile;
+    document.getElementById('setNombre').value = p.name || '';
+    document.getElementById('setPeso').value = p.weight || '';
+    document.getElementById('setAltura').value = p.height || '';
+    document.getElementById('setEdad').value = p.age || '';
+    document.getElementById('setGenero').value = p.gender;
+    document.getElementById('setActividad').value = p.activity;
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.opacity = 1;
+  setTimeout(() => t.style.opacity = 0, 2000);
+}
+
+/* ── SYNC CLOUD (PLACEHOLDERS) ──────────────────────────────── */
+async function saveEntryToCloud(entry) {
+  if (!CONFIG.scriptUrl.includes('TU_WEB_APP')) {
+    fetch(`${CONFIG.scriptUrl}?action=addEntry&profile=${state.profile}&data=${JSON.stringify(entry)}`);
+  }
+}
+
+async function syncProfileToCloud(p) {
+  if (!CONFIG.scriptUrl.includes('TU_WEB_APP')) {
+    fetch(`${CONFIG.scriptUrl}?action=setProfile&profile=${p}&data=${JSON.stringify(state.profiles[p])}`);
+  }
+}
+
+// Carga Inicial
+window.onload = () => {
+  const savedP = localStorage.getItem('vt_profiles');
+  if(savedP) state.profiles = JSON.parse(savedP);
+  
+  ['A','B'].forEach(p => {
+    const ent = localStorage.getItem(`vt_entries_${p}`);
+    if(ent) state.entries[p] = JSON.parse(ent);
+  });
+  
+  renderAll();
+};
 </script>
+
 </body>
 </html>
