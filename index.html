@@ -1465,6 +1465,43 @@ const AN_BASE = 'https://api.api-ninjas.com/v1';
 
 function hasApiKey() { return !!CONFIG.apiNinjasKey; }
 
+/**
+ * Calculate calories from the free-tier macro fields returned by /v1/nutrition.
+ *
+ * The API marks calories and protein_g as premium-only (returns a string).
+ * We calculate from what IS available using Atwater factors:
+ *   fat       → 9 kcal/g
+ *   net carbs → 4 kcal/g  (carbohydrates_total_g − fiber_g)
+ *   fiber     → 2 kcal/g  (partially fermentable, ~2 kcal/g average)
+ *
+ * Protein is intentionally excluded from the estimate because guessing it
+ * from mass balance produces large errors for high-water foods (yogurt, fruit).
+ * The result is a slight undercount for protein-dense foods (meat, eggs) but
+ * accurate for carb/fat-dominant foods.
+ *
+ * @param {object} food  — single item from /v1/nutrition response
+ * @param {number} [multiplier=1] — scale for portions
+ * @returns {number}  estimated kcal, rounded
+ */
+function nutriCalories(food, multiplier = 1) {
+  // Use real value if API returned a number (premium account)
+  const rawCal = food.calories;
+  if (typeof rawCal === 'number' && rawCal > 0) return Math.round(rawCal * multiplier);
+
+  const fat   = Number(food.fat_total_g)           || 0;
+  const carbs = Number(food.carbohydrates_total_g) || 0;
+  const fiber = Number(food.fiber_g)               || 0;
+
+  // Use protein if available (premium), otherwise skip it
+  const rawProt = food.protein_g;
+  const protein = (typeof rawProt === 'number' && rawProt >= 0) ? rawProt : 0;
+
+  // Atwater: fat*9 + net_carbs*4 + fiber*2 + protein*4
+  const netCarbs = Math.max(0, carbs - fiber);
+  const kcal     = fat * 9 + netCarbs * 4 + fiber * 2 + protein * 4;
+  return Math.round(Math.max(0, kcal) * multiplier);
+}
+
 async function anFetch(path) {
   const res = await fetch(AN_BASE + path, {
     headers: { 'X-Api-Key': CONFIG.apiNinjasKey }
@@ -1574,27 +1611,31 @@ function onIngredientInput(e, rowId) {
 async function searchIngredient(rowId, query) {
   if (query.length < 2) { hideDropdown(`ing-ac-${rowId}`); return; }
   try {
-    // Encode commas as %2C per API docs to avoid server parsing issues
+    // Encode commas as %2C per API docs; use "and" join if multiple words
     const safeQuery = query.replace(/,/g, '%2C');
     const items = await anFetch(`/nutrition?query=${encodeURIComponent(safeQuery)}`);
     if (!items || !items.length) { hideDropdown(`ing-ac-${rowId}`); return; }
     showDropdown(
       `ing-ac-${rowId}`,
-      items.slice(0, 5).map(f => ({
-        label: `${f.name} &mdash; <strong>${Math.round(f.calories)} kcal</strong> <small>(${f.serving_size_g}g)</small>`,
-        data:  f
-      })),
+      items.slice(0, 5).map(f => {
+        const cal = nutriCalories(f);
+        return {
+          label: `${f.name} &mdash; <strong>${cal} kcal</strong> <small>(${f.serving_size_g}g)</small>`,
+          data:  { ...f, _kcal: cal }   // attach pre-computed kcal
+        };
+      }),
       (item) => selectIngredient(rowId, item.data)
     );
   } catch (_) { hideDropdown(`ing-ac-${rowId}`); }
 }
 
 function selectIngredient(rowId, food) {
-  // Fill the input with the recognized food name so the final estimate stays consistent
   const inp = document.getElementById(`ing-${rowId}`);
   if (inp) inp.value = food.name;
-  _rowNutrition[rowId] = food;
-  setBadge(rowId, Math.round(food.calories));
+  // Store with guaranteed numeric kcal so macros work correctly
+  const cal = food._kcal != null ? food._kcal : nutriCalories(food);
+  _rowNutrition[rowId] = { ...food, calories: cal };
+  setBadge(rowId, cal);
   hideDropdown(`ing-ac-${rowId}`);
   updateTotalsFromResolved();
 }
@@ -1672,20 +1713,24 @@ async function estimateFoodCalories() {
       let   totalCal  = 0;
 
       items.forEach((food, i) => {
-        const cal = Math.round(food.calories || 0);
+        // Use nutriCalories() — handles premium-locked fields via Atwater
+        const cal = nutriCalories(food);
         totalCal += cal;
 
-        // Update badge on matching row
         const el = inputEls[i];
         if (el) {
           const rowId = el.id.replace('ing-', '');
           setBadge(rowId, cal);
-          _rowNutrition[rowId] = food;  // cache for macros
+          // Cache with guaranteed numeric calories for macros
+          _rowNutrition[rowId] = { ...food, calories: cal };
         }
 
-        breakdown.push(
-          `${food.name} (${food.serving_size_g}g) — ${cal} kcal`
-        );
+        // Build breakdown label with available macro detail
+        const fat   = Number(food.fat_total_g)           || 0;
+        const carbs = Number(food.carbohydrates_total_g) || 0;
+        const sugar = Number(food.sugar_g)               || 0;
+        const detail = `fat ${fat}g · carbs ${carbs}g · sugar ${sugar}g`;
+        breakdown.push(`${food.name} (${food.serving_size_g}g) — ${cal} kcal  [${detail}]`);
       });
 
       // If API returned fewer items than rows (e.g. it merged some),
