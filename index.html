@@ -791,6 +791,151 @@
     }
     .calorie-always-input-wrap .calorie-result-unit { color: var(--text-2); font-size: .85rem; }
 
+
+    /* ── DATE NAVIGATION ───────────────────────────────────────── */
+    .date-nav {
+      display: flex; align-items: center;
+      padding: .5rem 1rem;
+      gap: .4rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .date-nav-btn {
+      width: 32px; height: 32px; flex-shrink: 0;
+      border-radius: 8px; border: 1px solid var(--border);
+      font-size: 1.2rem; font-weight: 700;
+      color: var(--text-2); background: var(--bg-card);
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--transition); cursor: pointer;
+    }
+    .date-nav-btn:hover { border-color: var(--border-act); color: var(--lime); }
+    .date-nav-center {
+      flex: 1; display: flex; align-items: center; gap: .4rem;
+      justify-content: center; position: relative; cursor: pointer;
+    }
+    .date-picker-input {
+      position: absolute; opacity: 0; pointer-events: none;
+      width: 1px; height: 1px;
+    }
+    .date-display {
+      font-size: .78rem; font-family: 'IBM Plex Mono', monospace;
+      color: var(--text-2); cursor: pointer;
+    }
+    .date-display:hover { color: var(--lime); }
+    .date-today-badge {
+      font-size: .62rem; font-weight: 700; letter-spacing: .06em;
+      padding: .15rem .45rem; border-radius: 50px;
+      background: var(--lime-dim); color: var(--lime);
+      border: 1px solid rgba(181,255,77,.3);
+    }
+
+    /* ── PERIOD SELECTOR ───────────────────────────────────────── */
+    .period-selector {
+      display: flex; gap: .35rem; padding: .85rem 1.25rem .5rem;
+    }
+    .period-btn {
+      flex: 1; padding: .4rem .25rem;
+      font-size: .72rem; font-weight: 700; letter-spacing: .05em;
+      text-transform: uppercase;
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      color: var(--text-2); background: var(--bg-card);
+      transition: all var(--transition); cursor: pointer;
+      text-align: center;
+    }
+    .period-btn.active {
+      background: var(--lime-dim); border-color: var(--border-act);
+      color: var(--lime);
+    }
+
+    /* ── CHART WRAP ────────────────────────────────────────────── */
+    .chart-wrap {
+      padding: .5rem 1.25rem 0;
+      position: relative;
+    }
+    .chart-wrap canvas { width: 100% !important; }
+    .chart-legend {
+      display: flex; gap: 1rem; padding: .35rem 1.25rem .25rem;
+      flex-wrap: wrap;
+    }
+    .chart-legend-item {
+      display: flex; align-items: center; gap: .35rem;
+      font-size: .68rem; color: var(--text-2);
+    }
+    .chart-legend-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+
+    /* ── RECETARIO PANEL ───────────────────────────────────────── */
+    .recetario-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      margin-bottom: .75rem;
+      overflow: hidden;
+      animation: slideIn .2s ease;
+    }
+    .recetario-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .75rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .recetario-title {
+      font-size: .82rem; font-weight: 700;
+    }
+    .recetario-list { max-height: 260px; overflow-y: auto; }
+    .recipe-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .7rem 1rem;
+      border-bottom: 1px solid var(--border);
+      gap: .5rem;
+      transition: background var(--transition);
+    }
+    .recipe-item:last-child { border-bottom: none; }
+    .recipe-item:hover { background: rgba(255,255,255,.03); }
+    .recipe-item-main { flex: 1; min-width: 0; }
+    .recipe-item-name {
+      font-size: .88rem; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .recipe-item-detail {
+      font-size: .7rem; color: var(--text-2); margin-top: .1rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .recipe-item-cal {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .82rem; font-weight: 600; color: var(--amber);
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .btn-use-recipe {
+      padding: .25rem .6rem; border-radius: 50px;
+      font-size: .7rem; font-weight: 700;
+      border: 1px solid var(--border-act);
+      color: var(--lime); background: var(--lime-dim);
+      cursor: pointer; transition: all var(--transition); flex-shrink: 0;
+    }
+    .btn-use-recipe:hover { background: rgba(181,255,77,.25); }
+
+    /* ── MEASUREMENT HISTORY ───────────────────────────────────── */
+    .meas-entry {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .7rem 0;
+      border-bottom: 1px solid var(--border);
+      gap: .5rem;
+    }
+    .meas-entry:last-child { border-bottom: none; }
+    .meas-date { font-size: .72rem; color: var(--text-2); font-family: 'IBM Plex Mono', monospace; }
+    .meas-values { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .meas-chip {
+      font-size: .72rem; padding: .15rem .5rem; border-radius: 50px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .meas-chip.highlight { background: var(--lime-dim); border-color: var(--border-act); color: var(--lime); }
+
+    /* ── TABS — 5 items needs smaller font ────────────────────── */
+    .tabs { overflow-x: auto; }
+    .tab-btn { font-size: .65rem; padding: .75rem .15rem; }
+
     /* ── SYNC LOCKED BANNER ────────────────────────────────────── */
     .sync-locked-banner {
       display: flex; gap: 0.85rem; align-items: flex-start;
@@ -852,10 +997,17 @@
     </div>
   </header>
 
-  <!-- Date / Profile label -->
-  <div class="date-bar">
-    <span class="date-display" id="dateDisplay"></span>
-    <span class="profile-name-display" id="profileNameDisplay">__PROFILE_A_NAME__</span>
+  <!-- Date navigation — lets user go back/forward to log past entries -->
+  <div class="date-nav">
+    <button class="date-nav-btn" onclick="changeDate(-1)" title="Día anterior">‹</button>
+    <div class="date-nav-center">
+      <input type="date" id="datePicker" class="date-picker-input"
+        onchange="onDatePickerChange(event)" />
+      <span class="date-display" id="dateDisplay" onclick="document.getElementById('datePicker').showPicker()"></span>
+      <span class="date-today-badge" id="dateTodayBadge" style="display:none">HOY</span>
+    </div>
+    <button class="date-nav-btn" onclick="changeDate(1)" title="Día siguiente">›</button>
+    <span class="profile-name-display" id="profileNameDisplay" style="margin-left:.5rem">__PROFILE_A_NAME__</span>
   </div>
 
   <!-- ── NAVIGATION TABS ─────────────────────────────────────── -->
@@ -864,6 +1016,7 @@
     <button class="tab-btn" id="tab-comidas"   onclick="switchTab('comidas')">Comidas</button>
     <button class="tab-btn" id="tab-ejercicio" onclick="switchTab('ejercicio')">Ejercicio</button>
     <button class="tab-btn" id="tab-historial" onclick="switchTab('historial')">Historial</button>
+    <button class="tab-btn" id="tab-medidas"   onclick="switchTab('medidas')">Medidas</button>
   </div>
 
   <!-- ── DASHBOARD TAB ──────────────────────────────────────────── -->
@@ -1014,9 +1167,27 @@
       </button>
     </div>
 
-    <div class="section-header">
-      <span class="section-title">Registros de hoy</span>
+    <!-- ── RECETARIO PANEL ─────────────────────────────────────── -->
+    <div class="section-header" style="margin-top:1.5rem">
+      <span class="section-title">Registros del día</span>
+      <button class="btn-add-small" onclick="toggleRecetario()">
+        📚 Recetario
+      </button>
     </div>
+
+    <!-- Recetario drawer — hidden by default -->
+    <div id="recetarioPanel" style="display:none" class="recetario-panel">
+      <div class="recetario-header">
+        <span class="recetario-title">📚 Mis Recetas Guardadas</span>
+        <button class="btn-add-small" onclick="saveCurrentAsRecipe()">+ Guardar actual</button>
+      </div>
+      <div class="recetario-list" id="recetarioList">
+        <div class="empty-state" style="padding:1rem">
+          <div>Sin recetas guardadas — registra una comida y guárdala aquí</div>
+        </div>
+      </div>
+    </div>
+
     <div class="log-list" id="todayFoodList"></div>
   </div>
 
@@ -1100,11 +1271,79 @@
 
   <!-- ── HISTORIAL TAB ───────────────────────────────────────────── -->
   <div class="tab-content" id="content-historial">
-    <div id="historialContent">
-      <div class="empty-state">
-        <div class="empty-icon">📋</div>
-        <div>El historial aparecerá aquí</div>
+    <div class="tab-content" style="display:block;padding:0">
+      <!-- Period selector -->
+      <div class="period-selector">
+        <button class="period-btn active" id="period-dia"     onclick="setPeriod('dia')">Día</button>
+        <button class="period-btn"        id="period-semana"  onclick="setPeriod('semana')">Semana</button>
+        <button class="period-btn"        id="period-mes"     onclick="setPeriod('mes')">Mes</button>
+        <button class="period-btn"        id="period-todo"    onclick="setPeriod('todo')">Todo</button>
       </div>
+      <!-- Chart area -->
+      <div class="chart-wrap" id="chartWrap" style="display:none">
+        <canvas id="calorieChart" height="160"></canvas>
+      </div>
+      <!-- Log entries -->
+      <div style="padding:0 1.25rem 1rem" id="historialContent">
+        <div class="empty-state"><div class="empty-icon">📋</div><div>El historial aparecerá aquí</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MEDIDAS TAB ───────────────────────────────────────────────── -->
+  <div class="tab-content" id="content-medidas">
+    <div style="padding:1.25rem">
+      <!-- Log measurement form -->
+      <div class="form-card" style="margin-bottom:1rem">
+        <div class="form-title">📏 Registrar Medidas</div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label>Peso (kg)</label>
+            <input type="number" id="mWeight" placeholder="70.5" step="0.1" min="20" />
+          </div>
+          <div class="form-group">
+            <label>Cintura (cm)</label>
+            <input type="number" id="mWaist" placeholder="85" step="0.5" />
+          </div>
+          <div class="form-group">
+            <label>Cadera (cm)</label>
+            <input type="number" id="mHip" placeholder="95" step="0.5" />
+          </div>
+          <div class="form-group">
+            <label>Cuello (cm)</label>
+            <input type="number" id="mNeck" placeholder="38" step="0.5" />
+          </div>
+          <div class="form-group">
+            <label>Brazo (cm)</label>
+            <input type="number" id="mArm" placeholder="32" step="0.5" />
+          </div>
+          <div class="form-group">
+            <label>Muslo (cm)</label>
+            <input type="number" id="mThigh" placeholder="55" step="0.5" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Nota (opcional)</label>
+          <input type="text" id="mNote" placeholder="Ej: Mañana en ayunas" />
+        </div>
+        <button class="btn-primary" onclick="saveMeasurement()">Guardar medidas</button>
+      </div>
+
+      <!-- Measurement metric selector -->
+      <div class="period-selector" style="margin-bottom:.75rem">
+        <button class="period-btn active" id="mmetric-peso"    onclick="setMMetric('peso')">Peso</button>
+        <button class="period-btn"        id="mmetric-cintura" onclick="setMMetric('cintura')">Cintura</button>
+        <button class="period-btn"        id="mmetric-grasa"   onclick="setMMetric('grasa')">% Grasa</button>
+        <button class="period-btn"        id="mmetric-imc"     onclick="setMMetric('imc')">IMC</button>
+      </div>
+
+      <!-- Measurements chart -->
+      <div class="chart-wrap" id="measChartWrap" style="display:none">
+        <canvas id="measChart" height="180"></canvas>
+      </div>
+
+      <!-- Measurement history -->
+      <div id="measHistory"></div>
     </div>
   </div>
 </div><!-- end .app -->
@@ -1136,6 +1375,12 @@
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
     </svg>
     Historial
+  </button>
+  <button class="nav-btn" id="nav-medidas" onclick="switchTab('medidas')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
+    </svg>
+    Medidas
   </button>
 </nav>
 
@@ -1236,16 +1481,22 @@ const PROFILE_NAMES = {
 };
 
 /* ── STATE ──────────────────────────────────────────────────── */
+const _TODAY = new Date().toISOString().split('T')[0];
 const state = {
-  profile: 'A',                   // active profile
-  settingsProfile: 'A',           // which profile is being edited
-  today: new Date().toISOString().split('T')[0],
+  profile: 'A',
+  settingsProfile: 'A',
+  today:        _TODAY,          // real calendar today (never changes)
+  selectedDate: _TODAY,          // currently viewed/editing date
+  period:       'dia',           // historial period: dia|semana|mes|todo
+  mMetric:      'peso',          // measurements chart metric
   profiles: {
     A: loadProfileFromStorage('A'),
     B: loadProfileFromStorage('B')
   },
-  foods:     { A: [], B: [] },
-  exercises: { A: [], B: [] },
+  foods:        { A: [], B: [] },
+  exercises:    { A: [], B: [] },
+  measurements: { A: [], B: [] },
+  recipes:      { A: [], B: [] }, // recetario per profile
   isSyncing: false
 };
 
@@ -1280,14 +1531,16 @@ function saveProfileToStorage(user, data) {
   localStorage.setItem(`vita_profile_${user}`, JSON.stringify(toStore));
 }
 function loadEntriesFromStorage(user) {
-  const foods = JSON.parse(localStorage.getItem(`vita_foods_${user}`) || '[]');
-  const exercises = JSON.parse(localStorage.getItem(`vita_exercises_${user}`) || '[]');
-  state.foods[user] = foods;
-  state.exercises[user] = exercises;
+  state.foods[user]        = JSON.parse(localStorage.getItem(`vita_foods_${user}`)        || '[]');
+  state.exercises[user]    = JSON.parse(localStorage.getItem(`vita_exercises_${user}`)    || '[]');
+  state.measurements[user] = JSON.parse(localStorage.getItem(`vita_measurements_${user}`) || '[]');
+  state.recipes[user]      = JSON.parse(localStorage.getItem(`vita_recipes_${user}`)      || '[]');
 }
 function saveEntriesToStorage(user) {
-  localStorage.setItem(`vita_foods_${user}`, JSON.stringify(state.foods[user]));
-  localStorage.setItem(`vita_exercises_${user}`, JSON.stringify(state.exercises[user]));
+  localStorage.setItem(`vita_foods_${user}`,        JSON.stringify(state.foods[user]));
+  localStorage.setItem(`vita_exercises_${user}`,    JSON.stringify(state.exercises[user]));
+  localStorage.setItem(`vita_measurements_${user}`, JSON.stringify(state.measurements[user] || []));
+  localStorage.setItem(`vita_recipes_${user}`,      JSON.stringify(state.recipes[user] || []));
 }
 
 /* ── CALCULATIONS ───────────────────────────────────────────── */
@@ -1391,12 +1644,26 @@ async function syncProfile(user) {
   }
 }
 
-async function syncTodayEntries(user) {
+async function syncTodayEntries(user, date) {
   if (!CONFIG.scriptUrl) return;
-  const data = await apiGet({ action: 'getEntries', user, date: state.today });
+  const d    = date || state.selectedDate;
+  const data = await apiGet({ action: 'getEntries', user, date: d });
   if (data) {
-    if (data.foods)     state.foods[user]     = data.foods;
-    if (data.exercises) state.exercises[user] = data.exercises;
+    // Merge received entries into local store (don't overwrite other dates)
+    if (data.foods) {
+      const other = state.foods[user].filter(f => f.date !== d);
+      state.foods[user] = [...other, ...data.foods];
+    }
+    if (data.exercises) {
+      const other = state.exercises[user].filter(e => e.date !== d);
+      state.exercises[user] = [...other, ...data.exercises];
+    }
+    if (data.measurements) {
+      state.measurements[user] = data.measurements;
+    }
+    if (data.recipes) {
+      state.recipes[user] = data.recipes;
+    }
     saveEntriesToStorage(user);
   }
 }
@@ -1435,20 +1702,21 @@ async function switchProfile(user) {
     renderAll();  // re-render with fresh Sheets data
   }
   showToast(`${state.profiles[user].name}`, 'success');
-  // Nudge if this profile is also unconfigured
   if (!state.profiles[user].configured) showUnconfiguredBanner();
 }
 
 /* ── TAB SWITCH ─────────────────────────────────────────────── */
 function switchTab(tab) {
-  ['dashboard','comidas','ejercicio','historial'].forEach(t => {
-    document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
-    document.getElementById(`content-${t}`).classList.toggle('active', t === tab);
-    const navBtn = document.getElementById(`nav-${t}`);
-    if (navBtn) navBtn.classList.toggle('active', t === tab);
+  ['dashboard','comidas','ejercicio','historial','medidas'].forEach(t => {
+    const tabBtn = document.getElementById(`tab-${t}`);
+    const cont   = document.getElementById(`content-${t}`);
+    const nav    = document.getElementById(`nav-${t}`);
+    if (tabBtn) tabBtn.classList.toggle('active', t === tab);
+    if (cont)   cont.classList.toggle('active', t === tab);
+    if (nav)    nav.classList.toggle('active', t === tab);
   });
   if (tab === 'historial') renderHistorial();
-  // Ensure at least one ingredient row exists when switching to Comidas
+  if (tab === 'medidas')   renderMedidas();
   if (tab === 'comidas') {
     const rows = document.getElementById('ingredientRows');
     if (rows && !rows.children.length) addIngredientRow('', true);
@@ -1879,7 +2147,7 @@ async function submitFood() {
   const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
   const entry = {
     id:            Date.now().toString(),
-    date:          state.today,
+    date:          state.selectedDate,
     name,
     ingredients:   lines.join(', '),
     calories:      cals,
@@ -2072,7 +2340,7 @@ async function submitExercise() {
 
   const entry = {
     id:             Date.now().toString(),
-    date:           state.today,
+    date:           state.selectedDate,
     name,
     duration:       parseInt(document.getElementById('exDuration').value) || 0,
     caloriesBurned: cals,
@@ -2118,12 +2386,17 @@ function renderAll() {
   renderFoodList();
   renderExerciseList();
   renderDateBar();
+  // Re-render active secondary tabs if open
+  const histTab = document.getElementById('content-historial');
+  if (histTab && histTab.classList.contains('active')) renderHistorial();
+  const medTab = document.getElementById('content-medidas');
+  if (medTab && medTab.classList.contains('active')) renderMedidas();
 }
 
 function renderDateBar() {
   const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
   document.getElementById('dateDisplay').textContent =
-    new Date(state.today + 'T12:00:00').toLocaleDateString('es-MX', opts);
+    new Date(state.selectedDate + 'T12:00:00').toLocaleDateString('es-MX', opts);
   document.getElementById('profileNameDisplay').textContent =
     state.profiles[state.profile].name;
 }
@@ -2131,8 +2404,8 @@ function renderDateBar() {
 /* ── RENDER DASHBOARD ───────────────────────────────────────── */
 function renderDashboard() {
   const prof   = state.profiles[state.profile];
-  const todayFoods = state.foods[state.profile].filter(f => f.date === state.today);
-  const todayEx    = state.exercises[state.profile].filter(e => e.date === state.today);
+  const todayFoods = state.foods[state.profile].filter(f => f.date === state.selectedDate);
+  const todayEx    = state.exercises[state.profile].filter(e => e.date === state.selectedDate);
   const calsIn     = todayFoods.reduce((s,f) => s + (f.totalCalories || f.calories), 0);
   const calsBurned = todayEx.reduce((s,e) => s + e.caloriesBurned, 0);
 
@@ -2197,7 +2470,7 @@ function renderDashboard() {
 /* ── RENDER FOOD LIST ───────────────────────────────────────── */
 function renderFoodList() {
   const list   = document.getElementById('todayFoodList');
-  const today  = state.foods[state.profile].filter(f => f.date === state.today);
+  const today  = state.foods[state.profile].filter(f => f.date === state.selectedDate);
   if (!today.length) {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon">🍽️</div><div>Sin comidas registradas hoy</div></div>`;
     return;
@@ -2217,7 +2490,7 @@ function renderFoodList() {
 /* ── RENDER EXERCISE LIST ───────────────────────────────────── */
 function renderExerciseList() {
   const list  = document.getElementById('todayExList');
-  const today = state.exercises[state.profile].filter(e => e.date === state.today);
+  const today = state.exercises[state.profile].filter(e => e.date === state.selectedDate);
   if (!today.length) {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div><div>Sin ejercicios registrados hoy</div></div>`;
     return;
@@ -2433,35 +2706,551 @@ document.getElementById('settingsModal').addEventListener('click', function(e) {
   if (e.target === this) closeSettings();
 });
 
+/* ═══════════════════════════════════════════════════════════════
+   DATE NAVIGATION
+═══════════════════════════════════════════════════════════════ */
+function changeDate(delta) {
+  const d  = new Date(state.selectedDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  const nd = d.toISOString().split('T')[0];
+  // Don't go into the future
+  if (nd > state.today) return;
+  setSelectedDate(nd);
+}
+
+function onDatePickerChange(e) {
+  const val = e.target.value;
+  if (val && val <= state.today) setSelectedDate(val);
+}
+
+async function setSelectedDate(date) {
+  state.selectedDate = date;
+  renderDateBar();
+  renderAll();
+  // Sync that date's entries from Sheets if connected
+  if (CONFIG.scriptUrl) {
+    setSyncStatus('syncing');
+    await syncTodayEntries(state.profile, date);
+    setSyncStatus('online');
+    renderAll();
+  }
+}
+
+/* Override renderDateBar to update date picker + nav controls */
+function renderDateBar() {
+  const opts = { weekday:'short', year:'numeric', month:'short', day:'numeric' };
+  const sel  = state.selectedDate;
+  document.getElementById('dateDisplay').textContent =
+    new Date(sel + 'T12:00:00').toLocaleDateString('es-MX', opts);
+  document.getElementById('profileNameDisplay').textContent =
+    state.profiles[state.profile].name;
+  // Sync the hidden date input
+  const dp = document.getElementById('datePicker');
+  if (dp) dp.value = sel;
+  // Show/hide TODAY badge
+  const badge = document.getElementById('dateTodayBadge');
+  if (badge) badge.style.display = sel === state.today ? 'inline-flex' : 'none';
+  // Disable forward button when at today
+  const btns = document.querySelectorAll('.date-nav-btn');
+  if (btns[1]) btns[1].style.opacity = sel === state.today ? '0.3' : '1';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RECETARIO (RECIPE BOOK)
+═══════════════════════════════════════════════════════════════ */
+function loadRecipesFromStorage(user) {
+  const raw = localStorage.getItem(`vita_recipes_${user}`);
+  state.recipes[user] = raw ? JSON.parse(raw) : [];
+}
+
+function saveRecipesToStorage(user) {
+  localStorage.setItem(`vita_recipes_${user}`, JSON.stringify(state.recipes[user]));
+}
+
+function toggleRecetario() {
+  const panel = document.getElementById('recetarioPanel');
+  if (!panel) return;
+  const open = panel.style.display === 'none';
+  panel.style.display = open ? 'block' : 'none';
+  if (open) renderRecetario();
+}
+
+function renderRecetario() {
+  const list    = document.getElementById('recetarioList');
+  const recipes = state.recipes[state.profile];
+  if (!list) return;
+  if (!recipes.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:1rem"><div>Sin recetas guardadas — registra una comida y toca "+ Guardar actual"</div></div>';
+    return;
+  }
+  list.innerHTML = recipes.map((r, i) => `
+    <div class="recipe-item">
+      <div class="recipe-item-main">
+        <div class="recipe-item-name">${escHtml(r.name)}</div>
+        <div class="recipe-item-detail">${escHtml(r.ingredients || '')}</div>
+      </div>
+      <span class="recipe-item-cal">${r.calories} kcal</span>
+      <button class="btn-use-recipe" onclick="useRecipe(${i})">Usar</button>
+      <button class="btn-delete" onclick="deleteRecipe(${i})" title="Eliminar">✕</button>
+    </div>`).join('');
+}
+
+function saveCurrentAsRecipe() {
+  const lines = getIngredientLines();
+  const name  = document.getElementById('foodName').value.trim() || lines.slice(0,2).join(', ');
+  const cals  = parseFloat(document.getElementById('foodCalories').value);
+  if (!lines.length || !name) {
+    showToast('Completa el formulario de comida primero', 'error'); return;
+  }
+  const recipe = {
+    id:          Date.now().toString(),
+    name,
+    ingredients: lines.join(', '),
+    calories:    isNaN(cals) ? 0 : cals,
+    meal:        document.getElementById('foodMeal').value
+  };
+  state.recipes[state.profile].push(recipe);
+  saveRecipesToStorage(state.profile);
+  if (CONFIG.scriptUrl) apiCall({ action: 'saveRecipe', user: state.profile, recipe });
+  renderRecetario();
+  showToast(`"${name}" guardado en recetario ✓`, 'success');
+}
+
+function useRecipe(idx) {
+  const r = state.recipes[state.profile][idx];
+  if (!r) return;
+  // Fill form with recipe data
+  document.getElementById('foodName').value = r.name;
+  if (r.meal) document.getElementById('foodMeal').value = r.meal;
+  // Fill ingredient rows
+  document.getElementById('ingredientRows').innerHTML = '';
+  _ingredientIdCounter = 0;
+  Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
+  const lines = r.ingredients.split(',').map(s => s.trim()).filter(Boolean);
+  lines.forEach(l => addIngredientRow(l, true));
+  // Pre-fill calorie total if available
+  if (r.calories) {
+    document.getElementById('foodCalories').value = r.calories;
+    const badge = document.getElementById('foodCalBadge');
+    if (badge) { badge.textContent = 'Recetario'; badge.style.display = 'inline-flex'; }
+  }
+  // Close recetario
+  const panel = document.getElementById('recetarioPanel');
+  if (panel) panel.style.display = 'none';
+  showToast(`"${r.name}" cargado ✓`, 'success');
+}
+
+function deleteRecipe(idx) {
+  const r = state.recipes[state.profile].splice(idx, 1)[0];
+  saveRecipesToStorage(state.profile);
+  if (CONFIG.scriptUrl && r) apiCall({ action: 'deleteRecipe', user: state.profile, id: r.id });
+  renderRecetario();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MEASUREMENTS
+═══════════════════════════════════════════════════════════════ */
+function loadMeasurementsFromStorage(user) {
+  const raw = localStorage.getItem(`vita_measurements_${user}`);
+  state.measurements[user] = raw ? JSON.parse(raw) : [];
+}
+
+function saveMeasurementsToStorage(user) {
+  localStorage.setItem(`vita_measurements_${user}`, JSON.stringify(state.measurements[user]));
+}
+
+async function saveMeasurement() {
+  const weight = parseFloat(document.getElementById('mWeight').value) || null;
+  const waist  = parseFloat(document.getElementById('mWaist').value)  || null;
+  const hip    = parseFloat(document.getElementById('mHip').value)    || null;
+  const neck   = parseFloat(document.getElementById('mNeck').value)   || null;
+  const arm    = parseFloat(document.getElementById('mArm').value)    || null;
+  const thigh  = parseFloat(document.getElementById('mThigh').value)  || null;
+  const note   = document.getElementById('mNote').value.trim();
+
+  if (!weight && !waist && !hip) {
+    showToast('Ingresa al menos peso o cintura', 'error'); return;
+  }
+
+  const entry = {
+    id:     Date.now().toString(),
+    date:   state.selectedDate,
+    weight, waist, hip, neck, arm, thigh, note
+  };
+
+  state.measurements[state.profile].push(entry);
+  saveMeasurementsToStorage(state.profile);
+
+  // If weight updated, also update profile weight for TDEE/BMI calc
+  if (weight) {
+    state.profiles[state.profile].weight = weight;
+    saveProfileToStorage(state.profile, state.profiles[state.profile]);
+    if (CONFIG.scriptUrl) pushProfile(state.profile, state.profiles[state.profile]);
+  }
+
+  if (CONFIG.scriptUrl) apiCall({ action: 'saveMeasurement', user: state.profile, entry });
+
+  // Clear form
+  ['mWeight','mWaist','mHip','mNeck','mArm','mThigh','mNote'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  renderMedidas();
+  renderDashboard(); // refresh BMI/TDEE with new weight
+  showToast('Medidas guardadas ✓', 'success');
+}
+
+function setMMetric(metric) {
+  state.mMetric = metric;
+  document.querySelectorAll('[id^="mmetric-"]').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(`mmetric-${metric}`);
+  if (btn) btn.classList.add('active');
+  renderMedidas();
+}
+
+function renderMedidas() {
+  const all = state.measurements[state.profile]
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // ── Chart ─────────────────────────────────────────────────────
+  const metric    = state.mMetric;
+  const chartWrap = document.getElementById('measChartWrap');
+  const prof      = state.profiles[state.profile];
+
+  const getValue = (entry) => {
+    if (metric === 'peso')    return entry.weight;
+    if (metric === 'cintura') return entry.waist;
+    if (metric === 'imc')     return entry.weight && prof.height
+      ? parseFloat((entry.weight / Math.pow(prof.height/100, 2)).toFixed(1)) : null;
+    if (metric === 'grasa') {
+      // US Navy body fat % estimate
+      if (!entry.waist || !entry.neck || !prof.height) return null;
+      if (prof.sex === 'male') {
+        return parseFloat((495/(1.0324-0.19077*Math.log10(entry.waist-entry.neck)+0.15456*Math.log10(prof.height))-450).toFixed(1));
+      } else {
+        if (!entry.hip) return null;
+        return parseFloat((495/(1.29579-0.35004*Math.log10(entry.waist+entry.hip-entry.neck)+0.22100*Math.log10(prof.height))-450).toFixed(1));
+      }
+    }
+    return null;
+  };
+
+  const points = all.map(e => ({ date: e.date, val: getValue(e) })).filter(p => p.val !== null);
+
+  if (points.length >= 2) {
+    if (chartWrap) chartWrap.style.display = 'block';
+    drawLineChart('measChart', points, ['#7DF9FF'], [metric], { unit: metric === 'grasa' ? '%' : (metric === 'imc' ? '' : 'kg/cm') });
+  } else {
+    if (chartWrap) chartWrap.style.display = 'none';
+  }
+
+  // ── History list ──────────────────────────────────────────────
+  const container = document.getElementById('measHistory');
+  if (!container) return;
+  if (!all.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📏</div><div>Sin medidas registradas</div></div>';
+    return;
+  }
+
+  const fieldMap = { weight:'Peso', waist:'Cintura', hip:'Cadera', neck:'Cuello', arm:'Brazo', thigh:'Muslo' };
+  container.innerHTML = all.slice().reverse().map(e => {
+    const chips = Object.entries(fieldMap)
+      .filter(([k]) => e[k])
+      .map(([k,label]) => {
+        const unit = k === 'weight' ? 'kg' : 'cm';
+        const isMain = k === (metric === 'peso' ? 'weight' : metric === 'cintura' ? 'waist' : '');
+        return `<span class="meas-chip${isMain ? ' highlight' : ''}">${label}: ${e[k]}${unit}</span>`;
+      }).join('');
+    const dl = new Date(e.date + 'T12:00:00').toLocaleDateString('es-MX', { day:'numeric', month:'short', year:'numeric' });
+    return `
+      <div class="meas-entry">
+        <div>
+          <div class="meas-date">${dl}</div>
+          ${e.note ? `<div style="font-size:.7rem;color:var(--text-2);margin-top:.1rem">${escHtml(e.note)}</div>` : ''}
+        </div>
+        <div class="meas-values">${chips}</div>
+        <button class="btn-delete" onclick="deleteMeasurement('${e.id}')" title="Eliminar">✕</button>
+      </div>`;
+  }).join('');
+}
+
+function deleteMeasurement(id) {
+  state.measurements[state.profile] = state.measurements[state.profile].filter(e => e.id !== id);
+  saveMeasurementsToStorage(state.profile);
+  if (CONFIG.scriptUrl) apiCall({ action: 'deleteMeasurement', user: state.profile, id });
+  renderMedidas();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HISTORIAL ENHANCED
+═══════════════════════════════════════════════════════════════ */
+function setPeriod(period) {
+  state.period = period;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(`period-${period}`);
+  if (btn) btn.classList.add('active');
+  renderHistorial();
+}
+
+function getDateRange(period) {
+  const today = state.today;
+  const d     = new Date(today + 'T12:00:00');
+  if (period === 'dia')    return { from: today,                          to: today };
+  if (period === 'semana') {
+    const mon = new Date(d); mon.setDate(d.getDate() - d.getDay() + (d.getDay()===0?-6:1));
+    return { from: mon.toISOString().split('T')[0], to: today };
+  }
+  if (period === 'mes') {
+    return { from: today.slice(0,8) + '01', to: today };
+  }
+  return { from: '2000-01-01', to: today };
+}
+
+function renderHistorial() {
+  const container = document.getElementById('historialContent');
+  if (!container) return;
+
+  const { from, to } = getDateRange(state.period);
+  const allFoods = state.foods[state.profile].filter(f => f.date >= from && f.date <= to);
+  const allEx    = state.exercises[state.profile].filter(e => e.date >= from && e.date <= to);
+
+  // ── Calorie chart ──────────────────────────────────────────────
+  const chartWrap = document.getElementById('chartWrap');
+  const dates     = [...new Set([...allFoods.map(f=>f.date), ...allEx.map(e=>e.date)])].sort();
+
+  if (dates.length >= 2) {
+    if (chartWrap) chartWrap.style.display = 'block';
+    const calsIn   = dates.map(d => allFoods.filter(f=>f.date===d).reduce((s,f)=>s+(f.totalCalories||f.calories||0),0));
+    const calsBurn = dates.map(d => allEx.filter(e=>e.date===d).reduce((s,e)=>s+(e.caloriesBurned||0),0));
+    const tdee     = calculateTDEE(state.profiles[state.profile]);
+    const points   = dates.map((d, i) => ({ date: d, val: calsIn[i] }));
+    const points2  = dates.map((d, i) => ({ date: d, val: calsBurn[i] }));
+    drawLineChart('calorieChart', points, ['#FFB84D', '#B5FF4D'], ['Ingerido', 'Quemado'],
+      { refLine: tdee, unit: 'kcal', series2: points2 });
+  } else {
+    if (chartWrap) chartWrap.style.display = 'none';
+  }
+
+  // ── Date groups ────────────────────────────────────────────────
+  const groupDates = [...new Set([
+    ...allFoods.map(f => f.date),
+    ...allEx.map(e => e.date)
+  ])].sort((a,b) => b.localeCompare(a));
+
+  if (!groupDates.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div>Sin registros en este período</div></div>';
+    return;
+  }
+
+  container.innerHTML = groupDates.map(date => {
+    const foods    = allFoods.filter(f => f.date === date);
+    const exs      = allEx.filter(e => e.date === date);
+    const calsIn   = foods.reduce((s,f) => s+(f.totalCalories||f.calories||0), 0);
+    const calsBurn = exs.reduce((s,e) => s+(e.caloriesBurned||0), 0);
+    const net      = calsIn - calsBurn;
+    const tdee     = calculateTDEE(state.profiles[state.profile]) || 0;
+    const deficit  = tdee ? net - tdee : null;
+    const dl = new Date(date + 'T12:00:00').toLocaleDateString('es-MX', { weekday:'short', day:'numeric', month:'short' });
+
+    return `
+      <div class="history-date-group">
+        <div class="history-date-label" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.25rem">
+          <span style="display:flex;align-items:center;gap:.4rem">
+            ${dl}
+            ${date === state.today ? '<span style="color:var(--lime);font-size:.7em">HOY</span>' : ''}
+            <button class="btn-add-small" style="padding:.1rem .5rem;font-size:.65rem"
+              onclick="jumpToDate('${date}')">✏ editar</button>
+          </span>
+          <span class="mono" style="font-size:.7rem;display:flex;gap:.5rem;align-items:center">
+            <span style="color:var(--amber)">+${calsIn.toLocaleString()}</span>
+            ${calsBurn ? `<span style="color:var(--lime)">−${calsBurn.toLocaleString()}</span>` : ''}
+            ${deficit !== null ? `<span style="color:${deficit>0?'var(--danger)':'var(--ice)'}">
+              ${deficit>0?'+':'-'}${Math.abs(deficit).toLocaleString()} net</span>` : ''}
+          </span>
+        </div>
+        <div class="log-list">
+          ${foods.map(f => `
+            <div class="log-entry">
+              <div class="log-entry-main">
+                <div class="log-entry-name">${f.meal?`<span style="font-size:.7em;opacity:.5">${f.meal}·</span> `:''}${escHtml(f.name)}</div>
+                <div class="log-entry-sub">${escHtml(f.ingredients||'')}</div>
+              </div>
+              <div class="log-entry-cal cal-food">+${(f.totalCalories||f.calories||0).toLocaleString()}</div>
+            </div>`).join('')}
+          ${exs.map(e => `
+            <div class="log-entry">
+              <div class="log-entry-main">
+                <div class="log-entry-name">🏃 ${escHtml(e.name)}</div>
+                <div class="log-entry-sub">${e.duration?e.duration+'min':''} ${e.intensity||''}</div>
+              </div>
+              <div class="log-entry-cal cal-burn">−${(e.caloriesBurned||0).toLocaleString()}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function jumpToDate(date) {
+  setSelectedDate(date).then(() => {
+    switchTab('comidas');
+    showToast('Editando ' + new Date(date+'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'}), 'success');
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CANVAS LINE CHART — pure JS, no external library
+═══════════════════════════════════════════════════════════════ */
+function drawLineChart(canvasId, points, colors, labels, opts = {}) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  // Size canvas to container
+  const wrap    = canvas.parentElement;
+  const W       = wrap.offsetWidth - 10;
+  const H       = parseInt(canvas.getAttribute('height')) || 160;
+  canvas.width  = W;
+  canvas.height = H;
+
+  const ctx     = canvas.getContext('2d');
+  const series  = [points, opts.series2].filter(Boolean);
+  const allVals = series.flat().map(p => p.val).filter(v => v != null && !isNaN(v));
+  if (!allVals.length) return;
+
+  const PAD = { top: 18, right: 16, bottom: 36, left: 46 };
+  const cW  = W - PAD.left - PAD.right;
+  const cH  = H - PAD.top  - PAD.bottom;
+
+  const minV = Math.min(...allVals, opts.refLine || Infinity) * 0.9;
+  const maxV = Math.max(...allVals, opts.refLine || -Infinity) * 1.1;
+  const rng  = maxV - minV || 1;
+
+  const xOf  = (i, total) => PAD.left + (i / Math.max(total - 1, 1)) * cW;
+  const yOf  = (v) => PAD.top + cH - ((v - minV) / rng) * cH;
+
+  // Background
+  ctx.fillStyle = 'transparent';
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid lines
+  const nGrid = 4;
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= nGrid; i++) {
+    const y = PAD.top + (i / nGrid) * cH;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
+    const val = maxV - (i / nGrid) * rng;
+    ctx.fillStyle = 'rgba(122,132,153,0.8)';
+    ctx.font = '9px IBM Plex Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(val).toLocaleString(), PAD.left - 4, y + 3);
+  }
+
+  // Reference line (TDEE)
+  if (opts.refLine) {
+    const ry = yOf(opts.refLine);
+    ctx.strokeStyle = 'rgba(125,249,255,0.4)';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, ry); ctx.lineTo(PAD.left + cW, ry); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(125,249,255,0.7)';
+    ctx.font = '9px IBM Plex Mono, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('TDEE', PAD.left + 4, ry - 3);
+  }
+
+  // Series
+  series.forEach((pts, si) => {
+    const color = colors[si] || '#B5FF4D';
+    const n     = pts.length;
+    if (n < 1) return;
+
+    // Area fill
+    const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + cH);
+    grad.addColorStop(0, color + '30');
+    grad.addColorStop(1, color + '00');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(xOf(0, n), yOf(pts[0].val));
+    pts.forEach((p, i) => { if (i > 0) ctx.lineTo(xOf(i, n), yOf(p.val)); });
+    ctx.lineTo(xOf(n - 1, n), PAD.top + cH);
+    ctx.lineTo(xOf(0, n), PAD.top + cH);
+    ctx.closePath(); ctx.fill();
+
+    // Line
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 2;
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(xOf(i, n), yOf(p.val));
+      else ctx.lineTo(xOf(i, n), yOf(p.val));
+    });
+    ctx.stroke();
+
+    // Dots
+    pts.forEach((p, i) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(xOf(i, n), yOf(p.val), 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  });
+
+  // X-axis labels
+  const maxLabels = Math.floor(cW / 38);
+  const step      = Math.ceil(points.length / maxLabels);
+  ctx.fillStyle   = 'rgba(122,132,153,0.8)';
+  ctx.font        = '9px IBM Plex Mono, monospace';
+  ctx.textAlign   = 'center';
+  points.forEach((p, i) => {
+    if (i % step !== 0 && i !== points.length - 1) return;
+    const d   = new Date(p.date + 'T12:00:00');
+    const lbl = (d.getMonth()+1) + '/' + d.getDate();
+    ctx.fillText(lbl, xOf(i, points.length), H - PAD.bottom + 12);
+  });
+
+  // Legend
+  ctx.textAlign = 'left';
+  labels.forEach((lbl, i) => {
+    const color = colors[i] || '#B5FF4D';
+    const x     = PAD.left + i * 90;
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x + 4, H - 8, 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(122,132,153,0.9)';
+    ctx.fillText(lbl, x + 12, H - 4);
+  });
+}
+
 /* ── INIT ───────────────────────────────────────────────────── */
 async function init() {
-  // 1. Load whatever is in localStorage first (instant render)
+  // 1. Load localStorage
   loadEntriesFromStorage('A');
   loadEntriesFromStorage('B');
 
+  // 2. Init date picker with today's date
+  const dp = document.getElementById('datePicker');
+  if (dp) { dp.value = state.today; dp.max = state.today; }
+
   if (CONFIG.scriptUrl) {
-    // 2. Sync profiles from Sheets — cross-device source of truth
-    //    This runs BEFORE first render so the UI is already correct.
     setSyncStatus('syncing');
     await Promise.all([syncProfile('A'), syncProfile('B')]);
-    // 3. Now load today's entries for the active profile
     await syncTodayEntries(state.profile);
     setSyncStatus('online');
   } else {
     setSyncStatus('local');
   }
 
-  // 4. Render with fresh data
   renderAll();
+  renderDateBar();
 
-  // 5. Bootstrap ingredient row AFTER render so DOM elements exist
-  addIngredientRow('', true);   // skipFocus=true — don't steal focus on load
+  // Bootstrap first ingredient row after DOM is ready
+  addIngredientRow('', true);
 
-  // 6. Nudge unconfigured profiles to open settings
   const prof = state.profiles[state.profile];
-  if (!prof.configured) {
-    showUnconfiguredBanner();
-  }
+  if (!prof.configured) showUnconfiguredBanner();
 }
 
 function showUnconfiguredBanner() {
