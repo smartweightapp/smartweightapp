@@ -1880,7 +1880,8 @@ async function searchIngredient(rowId, query) {
   if (query.length < 2) { hideDropdown(`ing-ac-${rowId}`); return; }
   try {
     // Encode commas as %2C per API docs; use "and" join if multiple words
-    const safeQuery = query.replace(/,/g, '%2C');
+    // Normalize fractions ("1/2 calabaza" → "0.5 calabaza") then encode commas
+    const safeQuery = normalizeFractionsInQuery(query).replace(/,/g, '%2C');
     const items = await anFetch(`/nutrition?query=${encodeURIComponent(safeQuery)}`);
     if (!items || !items.length) { hideDropdown(`ing-ac-${rowId}`); return; }
     showDropdown(
@@ -1970,7 +1971,10 @@ async function estimateFoodCalories() {
     try {
       // Join all lines with " and " — the API parses each food item separately.
       // Encode commas inside individual items as %2C per docs.
-      const safeLines = lines.map(l => l.replace(/,/g, '%2C'));
+      // Normalize fractions to decimals before sending ("1/2 calabaza" → "0.5 calabaza")
+      const safeLines = lines
+        .map(l => normalizeFractionsInQuery(l))   // 1/2 → 0.5
+        .map(l => l.replace(/,/g, '%2C'));         // encode commas per API docs
       const query     = safeLines.join(' and ');
       const items     = await anFetch(`/nutrition?query=${encodeURIComponent(query)}`);
 
@@ -2089,39 +2093,267 @@ function resetFoodCalc() {
 }
 
 // Heuristic fallback — runs when API is unavailable or returns no results
+/* ── QUANTITY PARSING HELPERS ───────────────────────────────── */
+/**
+ * Parse a quantity from the start of a food string.
+ * Handles: integers (2), decimals (0.5), fractions (1/2, 2/3), mixed (1 1/2).
+ * Falls back to 1 if no number found.
+ */
+function parseFraction(str) {
+  const s = str.trim();
+  // Mixed number: "1 1/2"
+  let m = s.match(/^(\d+)\s+(\d+)\/(\d+)/);
+  if (m) return parseInt(m[1]) + parseInt(m[2]) / parseInt(m[3]);
+  // Simple fraction: "1/2", "2/3"
+  m = s.match(/^(\d+)\/(\d+)/);
+  if (m) return parseInt(m[1]) / parseInt(m[2]);
+  // Decimal or integer: "0.5", "2"
+  m = s.match(/^(\d*\.?\d+)/);
+  if (m) return parseFloat(m[1]);
+  // Word fractions
+  if (/^half/i.test(s))    return 0.5;
+  if (/^quarter/i.test(s)) return 0.25;
+  if (/^mitad/i.test(s))   return 0.5;
+  if (/^cuarto/i.test(s))  return 0.25;
+  if (/^tercio/i.test(s))  return 0.333;
+  return 1;
+}
+
+/**
+ * Convert fraction notation to decimal in a query string so the API understands it.
+ * "1/2 calabaza" → "0.5 calabaza"
+ * "1 1/2 cups rice" → "1.5 cups rice"
+ * Leaves decimals and integers unchanged.
+ */
+function normalizeFractionsInQuery(line) {
+  let s = line.trim();
+  // Mixed: 1 1/2
+  s = s.replace(/(\d+)\s+(\d+)\/(\d+)/g, (_, a, b, c) => {
+    const val = parseInt(a) + parseInt(b) / parseInt(c);
+    return Number.isInteger(val) ? String(val) : val.toFixed(2).replace(/\.?0+$/, '');
+  });
+  // Simple fraction: 1/2, 2/3
+  s = s.replace(/(\d+)\/(\d+)/g, (_, a, b) => {
+    const val = parseInt(a) / parseInt(b);
+    return val.toFixed(2).replace(/\.?0+$/, '');
+  });
+  // Word fractions
+  s = s.replace(/^half/i,    '0.5');
+  s = s.replace(/^quarter/i, '0.25');
+  s = s.replace(/^mitad/i,   '0.5');
+  s = s.replace(/^cuarto/i,  '0.25');
+  s = s.replace(/^tercio/i,  '0.33');
+  return s;
+}
+
 const FOOD_PATTERNS = [
-  [/(lechuga|espinaca|verdura|vegetal|pepino|apio|brocoli|zanahoria|tomate|jitomate|lettuce|spinach|tomato|carrot)/i, 20,  'Verdura'],
-  [/(pollo|chicken|pechuga|turkey|pavo)/i,                                165, 'Pollo'],
-  [/(carne|beef|res|bistec|steak|brisket|hamburguesa|burger|patty)/i,     250, 'Carne de res'],
-  [/(cerdo|pork|tocino|bacon|jamon|ham|salchicha|sausage)/i,              280, 'Cerdo/embutido'],
-  [/(salmon|atun|tuna|pescado|fish|tilapia|camaron|shrimp)/i,             150, 'Mariscos/pescado'],
-  [/(arroz|rice)/i,                                                        130, 'Arroz cocido'],
-  [/(pasta|fideos|espagueti|noodle|macarron|spaghetti)/i,                 220, 'Pasta cocida'],
-  [/(pan|bread|baguette|bolillo|tortilla|bun|slice)/i,                    130, 'Pan/tortilla'],
-  [/(huevo|egg)/i,                                                          78, 'Huevo'],
-  [/(leche|milk)/i,                                                        120, 'Leche'],
-  [/(yogur|yogurt)/i,                                                      100, 'Yogurt'],
-  [/(queso|cheese)/i,                                                      113, 'Queso'],
-  [/(aguacate|avocado)/i,                                                  160, 'Aguacate'],
-  [/(frijol|bean|lenteja|lentil|garbanzo|chickpea)/i,                     225, 'Legumbre'],
-  [/(fruta|manzana|apple|platano|banana|naranja|orange|pera|pear)/i,       80, 'Fruta'],
-  [/(aceite|oil|mantequilla|butter|mayonesa|mayo)/i,                      120, 'Grasa'],
-  [/(aderezo|dressing|salsa|sauce)/i,                                       60, 'Condimento'],
-  [/(refresco|soda|jugo|juice)/i,                                          150, 'Bebida azucarada'],
-  [/(fries|papas fritas|french fries)/i,                                   312, 'Papas fritas'],
+  [/(lechuga|lettuce|arugula|romaine)/i,                                      15, 'Lechuga'],
+  [/(espinaca|spinach|acelga|chard|berro)/i,                                  23, 'Espinaca'],
+  [/(kale|col rizada|berza)/i,                                                49, 'Kale'],
+  [/(calabaza|zucchini|squash|auyama|chayote)/i,                             17, 'Calabaza'],
+  [/(pepino|cucumber)/i,                                                      15, 'Pepino'],
+  [/(brocoli|broccoli)/i,                                                     34, 'Brocoli'],
+  [/(coliflor|cauliflower)/i,                                                 25, 'Coliflor'],
+  [/(repollo|cabbage)/i,                                                      25, 'Repollo'],
+  [/(zanahoria|carrot)/i,                                                     41, 'Zanahoria'],
+  [/(betabel|beet|remolacha)/i,                                               43, 'Betabel'],
+  [/(tomate|jitomate|tomato)/i,                                               18, 'Tomate'],
+  [/(pimiento|bell pepper)/i,                                                 31, 'Pimiento'],
+  [/(chile serrano|jalapen|habanero|chile verde)/i,                           40, 'Chile'],
+  [/(cebollita|green onion|scallion)/i,                                       32, 'Cebollita'],
+  [/(cebolla|onion)/i,                                                        40, 'Cebolla'],
+  [/(ajo|garlic)/i,                                                          149, 'Ajo'],
+  [/(poro|leek)/i,                                                            61, 'Poro'],
+  [/(apio|celery)/i,                                                          16, 'Apio'],
+  [/(nopal|cactus)/i,                                                         16, 'Nopal'],
+  [/(ejote|green bean)/i,                                                     31, 'Ejote'],
+  [/(chicharo|pea)/i,                                                         81, 'Chicharo'],
+  [/(esparragos|asparagus)/i,                                                 20, 'Esparragos'],
+  [/(hongos|champin|mushroom|seta)/i,                                         22, 'Hongos'],
+  [/(elote|corn on the cob)/i,                                                86, 'Elote'],
+  [/(maiz|corn)/i,                                                            86, 'Maiz'],
+  [/(jicama)/i,                                                               38, 'Jicama'],
+  [/(camote|sweet potato|boniato)/i,                                          86, 'Camote'],
+  [/(yuca|cassava|mandioca)/i,                                               160, 'Yuca'],
+  [/(platano macho|plantain)/i,                                              122, 'Platano macho'],
+  [/(papa|potato)/i,                                                          87, 'Papa'],
+  [/(pechuga de pollo|chicken breast)/i,                                    165, 'Pechuga pollo'],
+  [/(muslo de pollo|chicken thigh)/i,                                        209, 'Muslo pollo'],
+  [/(pavo|turkey)/i,                                                         135, 'Pavo'],
+  [/(pollo|chicken)/i,                                                       165, 'Pollo'],
+  [/(carne molida|ground beef|carne para hamburguesa)/i,                     250, 'Carne molida'],
+  [/(milanesa de res)/i,                                                     270, 'Milanesa res'],
+  [/(bistec|steak|carne asada|arrachera)/i,                                  207, 'Bistec res'],
+  [/(brisket|falda)/i,                                                       289, 'Corte graso res'],
+  [/(res|beef)/i,                                                            250, 'Carne de res'],
+  [/(tocino|bacon)/i,                                                        540, 'Tocino'],
+  [/(jamon de pavo|turkey ham)/i,                                            107, 'Jamon de pavo'],
+  [/(jamon serrano|prosciutto)/i,                                            145, 'Jamon serrano'],
+  [/(jamon|ham)/i,                                                           145, 'Jamon'],
+  [/(salchicha|hot dog|wiener)/i,                                            290, 'Salchicha'],
+  [/(chorizo)/i,                                                             455, 'Chorizo'],
+  [/(longaniza)/i,                                                           400, 'Longaniza'],
+  [/(carnitas)/i,                                                            300, 'Carnitas'],
+  [/(chicharron)/i,                                                          544, 'Chicharron'],
+  [/(costilla de cerdo|pork rib)/i,                                          290, 'Costilla cerdo'],
+  [/(cerdo|pork)/i,                                                          280, 'Cerdo'],
+  [/(salmon)/i,                                                              208, 'Salmon'],
+  [/(atun|tuna)/i,                                                           132, 'Atun'],
+  [/(sardina|sardine)/i,                                                     208, 'Sardina'],
+  [/(camaron|shrimp)/i,                                                       99, 'Camaron'],
+  [/(calamar|squid)/i,                                                        92, 'Calamar'],
+  [/(pulpo|octopus)/i,                                                        82, 'Pulpo'],
+  [/(tilapia)/i,                                                             128, 'Tilapia'],
+  [/(pescado blanco|white fish|basa|cod|bacalao)/i,                           82, 'Pescado blanco'],
+  [/(pescado|fish)/i,                                                        136, 'Pescado'],
+  [/(clara de huevo|egg white)/i,                                             17, 'Clara huevo'],
+  [/(huevo|egg)/i,                                                            78, 'Huevo'],
+  [/(tofu)/i,                                                                 76, 'Tofu'],
+  [/(tempeh)/i,                                                              193, 'Tempeh'],
+  [/(edamame)/i,                                                             121, 'Edamame'],
+  [/(arroz integral|brown rice)/i,                                           123, 'Arroz integral'],
+  [/(arroz|rice)/i,                                                          130, 'Arroz cocido'],
+  [/(quinoa|quinua)/i,                                                       120, 'Quinoa cocida'],
+  [/(espagueti|spaghetti)/i,                                                 220, 'Espagueti cocido'],
+  [/(pasta integral|whole wheat pasta)/i,                                    174, 'Pasta integral'],
+  [/(pasta|fideos|noodle|tallarines|macarron)/i,                             220, 'Pasta cocida'],
+  [/(pan bimbo integral|pan integral bimbo)/i,                               109, 'Pan Bimbo integral'],
+  [/(pan bimbo|pan blanco bimbo)/i,                                           79, 'Pan Bimbo blanco'],
+  [/(pan para hamburguesa bimbo|hamburger bun bimbo)/i,                      130, 'Pan hamburguesa Bimbo'],
+  [/(pan integral|whole wheat bread)/i,                                       80, 'Pan integral'],
+  [/(bolillo)/i,                                                             231, 'Bolillo'],
+  [/(baguette)/i,                                                            274, 'Baguette'],
+  [/(pan dulce|concha|cuernito)/i,                                           325, 'Pan dulce'],
+  [/(pan para hot dog|hot dog bun)/i,                                        120, 'Pan hot dog'],
+  [/(tortilla de maiz|corn tortilla)/i,                                       52, 'Tortilla maiz'],
+  [/(tortilla de harina|flour tortilla)/i,                                   146, 'Tortilla harina'],
+  [/(tostada de maiz|corn tostada)/i,                                         50, 'Tostada maiz'],
+  [/(tortilla|tostada)/i,                                                     79, 'Tortilla'],
+  [/(pan de caja|sandwich bread)/i,                                           79, 'Pan de caja'],
+  [/(pan|bread|bun|slice)/i,                                                  79, 'Pan'],
+  [/(avena en hojuelas|rolled oats|oatmeal)/i,                               389, 'Avena cruda'],
+  [/(avena|oats)/i,                                                          150, 'Avena cocida'],
+  [/(cereal integral|bran cereal|all bran)/i,                                 80, 'Cereal integral'],
+  [/(granola)/i,                                                             450, 'Granola'],
+  [/(cereal|cornflakes)/i,                                                   110, 'Cereal'],
+  [/(totopos|tortilla chips|nachos)/i,                                       489, 'Totopos'],
+  [/(tamal)/i,                                                               190, 'Tamal'],
+  [/(leche entera|whole milk)/i,                                              61, 'Leche entera'],
+  [/(leche descremada|skim milk)/i,                                           35, 'Leche descremada'],
+  [/(leche de almendras|almond milk)/i,                                       15, 'Leche almendras'],
+  [/(leche de avena|oat milk)/i,                                              44, 'Leche avena'],
+  [/(leche|milk)/i,                                                           61, 'Leche'],
+  [/(yogurt griego|greek yogurt)/i,                                           73, 'Yogurt griego'],
+  [/(yogurt natural|plain yogurt)/i,                                          59, 'Yogurt natural'],
+  [/(yogurt|yogur)/i,                                                         59, 'Yogurt'],
+  [/(queso panela)/i,                                                        280, 'Queso panela'],
+  [/(queso oaxaca|quesillo)/i,                                               356, 'Queso Oaxaca'],
+  [/(queso manchego|manchego)/i,                                             380, 'Queso manchego'],
+  [/(queso fresco)/i,                                                        260, 'Queso fresco'],
+  [/(queso cottage)/i,                                                        98, 'Queso cottage'],
+  [/(queso crema|cream cheese)/i,                                            342, 'Queso crema'],
+  [/(queso|cheese)/i,                                                        113, 'Queso'],
+  [/(requeson|ricotta)/i,                                                    174, 'Requeson'],
+  [/(crema acida|sour cream)/i,                                              198, 'Crema acida'],
+  [/(mantequilla|butter)/i,                                                  717, 'Mantequilla'],
+  [/(margarina)/i,                                                           720, 'Margarina'],
+  [/(frijoles negros|black beans)/i,                                         132, 'Frijoles negros'],
+  [/(frijoles pintos|pinto beans)/i,                                         143, 'Frijoles pintos'],
+  [/(frijoles refritos)/i,                                                   120, 'Frijoles refritos'],
+  [/(frijol|bean)/i,                                                         130, 'Frijoles cocidos'],
+  [/(lentejas|lentil)/i,                                                     116, 'Lentejas cocidas'],
+  [/(garbanzo|chickpea)/i,                                                   164, 'Garbanzo cocido'],
+  [/(haba|fava bean)/i,                                                      110, 'Habas cocidas'],
+  [/(soya|soy)/i,                                                            173, 'Soya cocida'],
+  [/(aguacate|avocado)/i,                                                    160, 'Aguacate'],
+  [/(aceite de oliva|olive oil)/i,                                           884, 'Aceite oliva'],
+  [/(aceite|oil)/i,                                                          884, 'Aceite'],
+  [/(nuez|walnut)/i,                                                         654, 'Nuez'],
+  [/(almendra|almond)/i,                                                     579, 'Almendra'],
+  [/(cacahuate|peanut)/i,                                                    567, 'Cacahuate'],
+  [/(pistache|pistachio)/i,                                                  560, 'Pistache'],
+  [/(chia)/i,                                                                486, 'Chia'],
+  [/(linaza|flaxseed)/i,                                                     534, 'Linaza'],
+  [/(mayonesa|mayo)/i,                                                       680, 'Mayonesa'],
+  [/(mantequilla de mani|peanut butter)/i,                                   588, 'Mantequilla mani'],
+  [/(manzana roja|red apple)/i,                                               52, 'Manzana roja'],
+  [/(manzana verde|green apple)/i,                                            52, 'Manzana verde'],
+  [/(manzana|apple)/i,                                                        52, 'Manzana'],
+  [/(pera|pear)/i,                                                            57, 'Pera'],
+  [/(mango ataulfo|ataulfo)/i,                                                65, 'Mango ataulfo'],
+  [/(mango)/i,                                                                65, 'Mango'],
+  [/(platano|banana)/i,                                                       89, 'Platano'],
+  [/(papaya)/i,                                                               43, 'Papaya'],
+  [/(pina|pineapple)/i,                                                       50, 'Pina'],
+  [/(sandia|watermelon)/i,                                                    30, 'Sandia'],
+  [/(melon|cantaloupe)/i,                                                     34, 'Melon'],
+  [/(naranja|orange)/i,                                                       47, 'Naranja'],
+  [/(mandarina|tangerine)/i,                                                  53, 'Mandarina'],
+  [/(toronja|grapefruit)/i,                                                   42, 'Toronja'],
+  [/(limon|lime|lemon)/i,                                                     29, 'Limon'],
+  [/(fresa|strawberry)/i,                                                     32, 'Fresa'],
+  [/(mora|blackberry|zarzamora)/i,                                            43, 'Mora'],
+  [/(arandano|blueberry)/i,                                                   57, 'Arandano'],
+  [/(uva|grape)/i,                                                            69, 'Uva'],
+  [/(cereza|cherry)/i,                                                        50, 'Cereza'],
+  [/(durazno|peach)/i,                                                        39, 'Durazno'],
+  [/(ciruela|plum)/i,                                                         46, 'Ciruela'],
+  [/(guayaba|guava)/i,                                                        68, 'Guayaba'],
+  [/(tamarindo|tamarind)/i,                                                  239, 'Tamarindo'],
+  [/(fruta|fruit)/i,                                                          55, 'Fruta generica'],
+  [/(salsa roja|red salsa)/i,                                                 36, 'Salsa roja'],
+  [/(salsa verde|salsa tomatillo)/i,                                          26, 'Salsa verde'],
+  [/(guacamole)/i,                                                           150, 'Guacamole'],
+  [/(pico de gallo)/i,                                                        25, 'Pico de gallo'],
+  [/(ketchup|catsup)/i,                                                      100, 'Ketchup'],
+  [/(mostaza|mustard)/i,                                                      66, 'Mostaza'],
+  [/(aderezo ranch|ranch)/i,                                                 238, 'Aderezo ranch'],
+  [/(aderezo cesar|caesar)/i,                                                280, 'Aderezo Cesar'],
+  [/(aderezo|dressing)/i,                                                    180, 'Aderezo'],
+  [/(mole)/i,                                                                220, 'Mole'],
+  [/(adobo)/i,                                                               130, 'Adobo'],
+  [/(salsa)/i,                                                                30, 'Salsa'],
+  [/(miel|honey)/i,                                                          304, 'Miel'],
+  [/(azucar|sugar)/i,                                                        387, 'Azucar'],
+  [/(agua de jamaica|hibiscus)/i,                                             20, 'Agua Jamaica'],
+  [/(agua de horchata|horchata)/i,                                           130, 'Horchata'],
+  [/(agua de tamarindo)/i,                                                    60, 'Agua tamarindo'],
+  [/(cafe negro|black coffee)/i,                                               2, 'Cafe negro'],
+  [/(cafe con leche|latte|cafe latte)/i,                                     120, 'Cafe con leche'],
+  [/(jugo de naranja|orange juice)/i,                                        112, 'Jugo naranja'],
+  [/(jugo verde|green juice)/i,                                               50, 'Jugo verde'],
+  [/(jugo|juice)/i,                                                           45, 'Jugo'],
+  [/(refresco|soda|cola)/i,                                                  180, 'Refresco'],
+  [/(cerveza|beer)/i,                                                         43, 'Cerveza'],
+  [/(chocolate negro|dark chocolate)/i,                                      546, 'Chocolate negro'],
+  [/(chocolate)/i,                                                           535, 'Chocolate'],
+  [/(mermelada|jam)/i,                                                       250, 'Mermelada'],
+  [/(papas fritas|french fries|fries)/i,                                     312, 'Papas fritas'],
+  [/(frituras)/i,                                                            547, 'Frituras'],
+  [/(palomitas|popcorn)/i,                                                   375, 'Palomitas'],
+  [/(galleta|cookie)/i,                                                      450, 'Galleta'],
+  [/(helado|ice cream)/i,                                                    207, 'Helado'],
+  [/(caldo de pollo|chicken broth)/i,                                         15, 'Caldo pollo'],
+  [/(caldo de res|beef broth)/i,                                              17, 'Caldo res'],
+  [/(caldo)/i,                                                                15, 'Caldo'],
+  [/(crema de leche|heavy cream)/i,                                          340, 'Crema de leche'],
+  [/(crema|cream)/i,                                                         198, 'Crema'],
 ];
 
 function roughFoodEstimateLines(lines) {
   let total = 0;
   const breakdown = [];
   for (const line of lines) {
-    const qty   = parseFloat(line) || 1;
+    // parseFraction handles 1/2, 2/3, 1 1/2, decimals, integers, word fractions
+    const qty   = parseFraction(line);
     let   match = null;
     for (const [re, base, label] of FOOD_PATTERNS) {
       if (re.test(line)) { match = { base, label }; break; }
     }
-    const cal = match ? Math.round(match.base * qty) : Math.round(200 * qty);
-    const lbl = match ? match.label : 'Alimento genérico';
+    // Fallback: 200 kcal per unit is too high for most vegetables/fruits.
+    // Use 50 as a more reasonable unknown-food fallback.
+    const cal = match ? Math.round(match.base * qty) : Math.round(50 * qty);
+    const lbl = match ? match.label : 'Alimento (estimación base)';
     total += cal;
     breakdown.push(`${line} — ${cal} kcal (${lbl})`);
     const inputEls = [...document.querySelectorAll('.ingredient-input')];
@@ -3224,11 +3456,741 @@ function drawLineChart(canvasId, points, colors, labels, opts = {}) {
   });
 }
 
+/* ── DEFAULT RECETARIO ──────────────────────────────────────── */
+// Pre-seeded with 32 common Mexican/everyday meals.
+// Loaded only once per profile (never overwrites user-added recipes).
+const DEFAULT_RECIPES = [
+  {
+    "name": "Avena con leche",
+    "meal": "Desayuno",
+    "calories": 280,
+    "ingredients": "1/2 cup avena en hojuelas, 1 cup leche entera, 1 tsp miel, pizca de canela",
+    "id": "default_0"
+  },
+  {
+    "name": "Avena con manzana y canela",
+    "meal": "Desayuno",
+    "calories": 260,
+    "ingredients": "1/2 cup avena, 1 cup agua, 1/2 manzana picada, 1 tsp miel, canela",
+    "id": "default_1"
+  },
+  {
+    "name": "Avena con mango",
+    "meal": "Desayuno",
+    "calories": 295,
+    "ingredients": "1/2 cup avena, 1 cup leche, 1/2 mango en cubos",
+    "id": "default_2"
+  },
+  {
+    "name": "Avena con platano",
+    "meal": "Desayuno",
+    "calories": 310,
+    "ingredients": "1/2 cup avena, 1 cup leche, 1/2 platano en rodajas, 1 tsp miel",
+    "id": "default_3"
+  },
+  {
+    "name": "Avena con fresa",
+    "meal": "Desayuno",
+    "calories": 250,
+    "ingredients": "1/2 cup avena, 1 cup leche descremada, 1/2 cup fresas, 1 tsp miel",
+    "id": "default_4"
+  },
+  {
+    "name": "Avena overnight",
+    "meal": "Desayuno",
+    "calories": 350,
+    "ingredients": "1/2 cup avena, 1/2 cup yogurt griego, 1/2 cup leche, 1/2 manzana rallada, 1 tsp chía",
+    "id": "default_5"
+  },
+  {
+    "name": "Yogurt griego con mango",
+    "meal": "Desayuno",
+    "calories": 185,
+    "ingredients": "1 cup yogurt griego, 1/2 mango en cubos, 1 tbsp miel",
+    "id": "default_6"
+  },
+  {
+    "name": "Yogurt griego con fresa",
+    "meal": "Merienda",
+    "calories": 160,
+    "ingredients": "1 cup yogurt griego, 1/2 cup fresas, 1 tbsp granola",
+    "id": "default_7"
+  },
+  {
+    "name": "Yogurt griego con manzana",
+    "meal": "Merienda",
+    "calories": 160,
+    "ingredients": "1 cup yogurt griego, 1/2 manzana en cubos, canela",
+    "id": "default_8"
+  },
+  {
+    "name": "Yogurt griego con pera",
+    "meal": "Merienda",
+    "calories": 165,
+    "ingredients": "1 cup yogurt griego, 1 pera en cubos, 1 tbsp nuez",
+    "id": "default_9"
+  },
+  {
+    "name": "Parfait de yogurt",
+    "meal": "Desayuno",
+    "calories": 310,
+    "ingredients": "1 cup yogurt griego, 1/4 cup granola, 1/2 cup fresa, 1 tbsp miel",
+    "id": "default_10"
+  },
+  {
+    "name": "Cereal integral con leche",
+    "meal": "Desayuno",
+    "calories": 285,
+    "ingredients": "1 cup cereal integral, 1 cup leche entera, 1/2 platano",
+    "id": "default_11"
+  },
+  {
+    "name": "Cereal integral con yogurt",
+    "meal": "Desayuno",
+    "calories": 265,
+    "ingredients": "1 cup cereal integral, 3/4 cup yogurt griego",
+    "id": "default_12"
+  },
+  {
+    "name": "Granola con leche",
+    "meal": "Desayuno",
+    "calories": 400,
+    "ingredients": "1/2 cup granola, 1 cup leche entera",
+    "id": "default_13"
+  },
+  {
+    "name": "Pan Bimbo con mantequilla",
+    "meal": "Desayuno",
+    "calories": 185,
+    "ingredients": "2 rebanadas pan Bimbo blanco, 1 tsp mantequilla",
+    "id": "default_14"
+  },
+  {
+    "name": "Pan integral con aguacate",
+    "meal": "Desayuno",
+    "calories": 240,
+    "ingredients": "2 rebanadas pan Bimbo integral, 1/4 aguacate machacado, sal y limon",
+    "id": "default_15"
+  },
+  {
+    "name": "Pan integral con queso",
+    "meal": "Desayuno",
+    "calories": 250,
+    "ingredients": "2 rebanadas pan Bimbo integral, 2 rebanadas queso, 1 tsp mostaza",
+    "id": "default_16"
+  },
+  {
+    "name": "Tostadas con queso",
+    "meal": "Desayuno",
+    "calories": 220,
+    "ingredients": "2 rebanadas pan Bimbo tostado, 2 rebanadas queso manchego",
+    "id": "default_17"
+  },
+  {
+    "name": "Sandwich de jamon clasico",
+    "meal": "Almuerzo",
+    "calories": 320,
+    "ingredients": "2 rebanadas pan Bimbo blanco, 2 rebanadas jamon, 1 rebanada queso, mostaza",
+    "id": "default_18"
+  },
+  {
+    "name": "Sandwich de jamon integral",
+    "meal": "Almuerzo",
+    "calories": 300,
+    "ingredients": "2 rebanadas pan Bimbo integral, 2 rebanadas jamon, lechuga, tomate",
+    "id": "default_19"
+  },
+  {
+    "name": "Sandwich de pavo",
+    "meal": "Almuerzo",
+    "calories": 290,
+    "ingredients": "2 rebanadas pan Bimbo integral, 2 rebanadas jamon de pavo, mostaza, lechuga",
+    "id": "default_20"
+  },
+  {
+    "name": "Sandwich de atun",
+    "meal": "Almuerzo",
+    "calories": 340,
+    "ingredients": "2 rebanadas pan Bimbo blanco, 1/2 lata atun, 1 tbsp mayonesa, apio picado",
+    "id": "default_21"
+  },
+  {
+    "name": "Sandwich de queso",
+    "meal": "Almuerzo",
+    "calories": 280,
+    "ingredients": "2 rebanadas pan Bimbo blanco, 2 rebanadas queso manchego, 1 tsp mantequilla",
+    "id": "default_22"
+  },
+  {
+    "name": "Huevos revueltos",
+    "meal": "Desayuno",
+    "calories": 215,
+    "ingredients": "2 huevos, 1 tsp mantequilla, sal, pimienta",
+    "id": "default_23"
+  },
+  {
+    "name": "Huevos fritos",
+    "meal": "Desayuno",
+    "calories": 200,
+    "ingredients": "2 huevos, 1 tsp aceite, sal",
+    "id": "default_24"
+  },
+  {
+    "name": "Omelette de queso",
+    "meal": "Desayuno",
+    "calories": 280,
+    "ingredients": "2 huevos, 1/4 cup queso, 1 tsp mantequilla, sal",
+    "id": "default_25"
+  },
+  {
+    "name": "Omelette de verduras",
+    "meal": "Desayuno",
+    "calories": 230,
+    "ingredients": "2 huevos, 1/4 pimiento, 1/4 cebolla, hongos, 1 tsp aceite",
+    "id": "default_26"
+  },
+  {
+    "name": "Huevos con jamon",
+    "meal": "Desayuno",
+    "calories": 285,
+    "ingredients": "2 huevos, 2 rebanadas jamon, 1 tsp aceite",
+    "id": "default_27"
+  },
+  {
+    "name": "Huevos a la mexicana",
+    "meal": "Desayuno",
+    "calories": 230,
+    "ingredients": "2 huevos, 1/4 tomate, 1/4 cebolla, chile serrano, 1 tsp aceite",
+    "id": "default_28"
+  },
+  {
+    "name": "Chilaquiles rojos",
+    "meal": "Desayuno",
+    "calories": 420,
+    "ingredients": "1 cup totopos de maiz, 1/2 cup salsa roja, 2 tbsp crema, 1/4 cup queso fresco, 1 huevo",
+    "id": "default_29"
+  },
+  {
+    "name": "Chilaquiles verdes",
+    "meal": "Desayuno",
+    "calories": 390,
+    "ingredients": "1 cup totopos de maiz, 1/2 cup salsa verde, 2 tbsp crema, 1/4 cup queso fresco",
+    "id": "default_30"
+  },
+  {
+    "name": "Chilaquiles con pollo",
+    "meal": "Almuerzo",
+    "calories": 520,
+    "ingredients": "1 cup totopos, 1/2 cup salsa roja, 80g pechuga de pollo desmenuzada, 2 tbsp crema",
+    "id": "default_31"
+  },
+  {
+    "name": "Chilaquiles con huevo",
+    "meal": "Desayuno",
+    "calories": 450,
+    "ingredients": "1 cup totopos, 1/2 cup salsa verde, 2 huevos estrellados, 2 tbsp crema",
+    "id": "default_32"
+  },
+  {
+    "name": "Chilaquiles con frijoles",
+    "meal": "Almuerzo",
+    "calories": 480,
+    "ingredients": "1 cup totopos, 1/2 cup salsa roja, 1/2 cup frijoles refritos, queso",
+    "id": "default_33"
+  },
+  {
+    "name": "Hamburguesa clasica",
+    "meal": "Almuerzo",
+    "calories": 490,
+    "ingredients": "1 carne para hamburguesa 150g, 2 pan para hamburguesa Bimbo, lechuga, tomate, cebolla",
+    "id": "default_34"
+  },
+  {
+    "name": "Hamburguesa con queso",
+    "meal": "Almuerzo",
+    "calories": 560,
+    "ingredients": "1 carne para hamburguesa 150g, 2 pan para hamburguesa Bimbo, 1 rebanada queso, lechuga, tomate",
+    "id": "default_35"
+  },
+  {
+    "name": "Hamburguesa sin pan",
+    "meal": "Almuerzo",
+    "calories": 280,
+    "ingredients": "150g carne molida de res a la plancha, lechuga, tomate, salsa",
+    "id": "default_36"
+  },
+  {
+    "name": "Milanesa de res",
+    "meal": "Almuerzo",
+    "calories": 420,
+    "ingredients": "150g milanesa de res, 1/2 cup pan molido, 1 huevo, aceite, sal",
+    "id": "default_37"
+  },
+  {
+    "name": "Milanesa de pollo",
+    "meal": "Almuerzo",
+    "calories": 380,
+    "ingredients": "1 pechuga de pollo aplastada, 1/2 cup pan molido, 1 huevo, aceite",
+    "id": "default_38"
+  },
+  {
+    "name": "Bistec a la mexicana",
+    "meal": "Almuerzo",
+    "calories": 360,
+    "ingredients": "150g bistec de res, 1/4 tomate, 1/4 cebolla, chile serrano, 1 tsp aceite",
+    "id": "default_39"
+  },
+  {
+    "name": "Arrachera asada",
+    "meal": "Almuerzo",
+    "calories": 310,
+    "ingredients": "150g arrachera, sal de mar, limon",
+    "id": "default_40"
+  },
+  {
+    "name": "Pechuga a la plancha",
+    "meal": "Almuerzo",
+    "calories": 245,
+    "ingredients": "1 pechuga de pollo mediana, ajo, sal, pimienta, 1 tsp aceite de oliva",
+    "id": "default_41"
+  },
+  {
+    "name": "Pollo en salsa verde",
+    "meal": "Almuerzo",
+    "calories": 295,
+    "ingredients": "1 pechuga pollo, 1/2 cup salsa verde, cebolla, cilantro",
+    "id": "default_42"
+  },
+  {
+    "name": "Pollo a la crema",
+    "meal": "Almuerzo",
+    "calories": 380,
+    "ingredients": "1 pechuga pollo, 1/4 cup crema, 1/4 cebolla, sal, pimienta",
+    "id": "default_43"
+  },
+  {
+    "name": "Tinga de pollo",
+    "meal": "Almuerzo",
+    "calories": 290,
+    "ingredients": "150g pollo desmenuzado, 1/4 cup salsa de jitomate, 1/4 cebolla, chipotle",
+    "id": "default_44"
+  },
+  {
+    "name": "Pollo al limon",
+    "meal": "Almuerzo",
+    "calories": 260,
+    "ingredients": "1 pechuga de pollo, jugo de 2 limones, ajo, sal, 1 tsp aceite",
+    "id": "default_45"
+  },
+  {
+    "name": "Lomo de cerdo",
+    "meal": "Almuerzo",
+    "calories": 310,
+    "ingredients": "150g lomo de cerdo, ajo, oregano, sal, 1 tsp aceite",
+    "id": "default_46"
+  },
+  {
+    "name": "Costillas BBQ",
+    "meal": "Almuerzo",
+    "calories": 450,
+    "ingredients": "200g costilla de cerdo, salsa BBQ, ajo en polvo",
+    "id": "default_47"
+  },
+  {
+    "name": "Salmon a la plancha",
+    "meal": "Almuerzo",
+    "calories": 310,
+    "ingredients": "150g salmon, limon, eneldo, 1 tsp aceite de oliva, sal",
+    "id": "default_48"
+  },
+  {
+    "name": "Tilapia al ajillo",
+    "meal": "Almuerzo",
+    "calories": 230,
+    "ingredients": "150g tilapia, 2 dientes ajo, limon, 1 tsp aceite de oliva, sal",
+    "id": "default_49"
+  },
+  {
+    "name": "Atun en lata",
+    "meal": "Almuerzo",
+    "calories": 145,
+    "ingredients": "1 lata atun en agua 140g, sal, pimienta",
+    "id": "default_50"
+  },
+  {
+    "name": "Camarones al ajo",
+    "meal": "Almuerzo",
+    "calories": 195,
+    "ingredients": "150g camaron, 3 dientes ajo, 1 tbsp mantequilla, limon, sal",
+    "id": "default_51"
+  },
+  {
+    "name": "Sopa de lentejas",
+    "meal": "Almuerzo",
+    "calories": 230,
+    "ingredients": "1/2 cup lentejas secas, 1/4 cebolla, 1 zanahoria, 1 tsp aceite, sal, comino",
+    "id": "default_52"
+  },
+  {
+    "name": "Lentejas guisadas",
+    "meal": "Almuerzo",
+    "calories": 200,
+    "ingredients": "1/2 cup lentejas cocidas, 1/4 tomate, 1/4 cebolla, 1 tsp aceite, cilantro",
+    "id": "default_53"
+  },
+  {
+    "name": "Lentejas con chorizo",
+    "meal": "Almuerzo",
+    "calories": 340,
+    "ingredients": "1/2 cup lentejas cocidas, 40g chorizo, 1/4 cebolla, tomate, chile",
+    "id": "default_54"
+  },
+  {
+    "name": "Sopa de frijol negro",
+    "meal": "Almuerzo",
+    "calories": 210,
+    "ingredients": "1 cup frijoles negros cocidos, caldo de pollo, 1/4 cebolla, epazote",
+    "id": "default_55"
+  },
+  {
+    "name": "Frijoles refritos",
+    "meal": "Almuerzo",
+    "calories": 190,
+    "ingredients": "1 cup frijol negro cocido, 1 tbsp aceite, 1/4 cebolla, sal",
+    "id": "default_56"
+  },
+  {
+    "name": "Garbanzo al vapor",
+    "meal": "Almuerzo",
+    "calories": 180,
+    "ingredients": "1 cup garbanzo cocido, limon, chile en polvo, sal",
+    "id": "default_57"
+  },
+  {
+    "name": "Papa al horno",
+    "meal": "Almuerzo",
+    "calories": 160,
+    "ingredients": "1 papa mediana, 1 tsp aceite, sal, pimienta",
+    "id": "default_58"
+  },
+  {
+    "name": "Papa cocida",
+    "meal": "Almuerzo",
+    "calories": 130,
+    "ingredients": "1 papa mediana cocida",
+    "id": "default_59"
+  },
+  {
+    "name": "Pure de papa",
+    "meal": "Almuerzo",
+    "calories": 210,
+    "ingredients": "1 papa grande, 2 tbsp leche, 1 tsp mantequilla, sal",
+    "id": "default_60"
+  },
+  {
+    "name": "Pure de papa con queso",
+    "meal": "Almuerzo",
+    "calories": 270,
+    "ingredients": "1 papa grande, 2 tbsp leche, 1 tsp mantequilla, 2 tbsp queso, sal",
+    "id": "default_61"
+  },
+  {
+    "name": "Papas a la francesa",
+    "meal": "Almuerzo",
+    "calories": 370,
+    "ingredients": "1 papa grande en bastones, 1 tbsp aceite, sal",
+    "id": "default_62"
+  },
+  {
+    "name": "Calabaza salteada",
+    "meal": "Cena",
+    "calories": 75,
+    "ingredients": "1 cup calabaza en cubos, 1/4 cebolla, ajo, 1 tsp aceite, sal",
+    "id": "default_63"
+  },
+  {
+    "name": "Sopa de calabaza",
+    "meal": "Almuerzo",
+    "calories": 85,
+    "ingredients": "1 cup calabaza, 1/4 cebolla, 1/2 cup caldo, 1 tsp aceite",
+    "id": "default_64"
+  },
+  {
+    "name": "Crema de calabaza",
+    "meal": "Cena",
+    "calories": 110,
+    "ingredients": "1 cup calabaza, 1/4 cebolla, 1/4 cup crema, caldo de pollo",
+    "id": "default_65"
+  },
+  {
+    "name": "Zanahoria al vapor",
+    "meal": "Cena",
+    "calories": 50,
+    "ingredients": "2 zanahorias medianas al vapor, limon, sal",
+    "id": "default_66"
+  },
+  {
+    "name": "Crema de zanahoria",
+    "meal": "Cena",
+    "calories": 110,
+    "ingredients": "2 zanahorias, 1/4 cebolla, 1/2 cup leche, 1 tsp mantequilla",
+    "id": "default_67"
+  },
+  {
+    "name": "Ejotes con zanahoria",
+    "meal": "Cena",
+    "calories": 70,
+    "ingredients": "1 cup ejotes, 1 zanahoria en bastones, ajo, 1 tsp aceite",
+    "id": "default_68"
+  },
+  {
+    "name": "Espinacas salteadas",
+    "meal": "Cena",
+    "calories": 60,
+    "ingredients": "2 cups espinaca, 2 dientes ajo, 1 tsp aceite de oliva, sal",
+    "id": "default_69"
+  },
+  {
+    "name": "Ensalada de espinaca",
+    "meal": "Almuerzo",
+    "calories": 120,
+    "ingredients": "2 cups espinaca, 1/4 pepino, cherry tomatoes, aderezo limon",
+    "id": "default_70"
+  },
+  {
+    "name": "Ensalada cesar",
+    "meal": "Almuerzo",
+    "calories": 310,
+    "ingredients": "2 cups lechuga romana, 3 tbsp aderezo cesar, 1/4 cup crutones, 2 tbsp queso parmesano",
+    "id": "default_71"
+  },
+  {
+    "name": "Ensalada mixta",
+    "meal": "Almuerzo",
+    "calories": 130,
+    "ingredients": "2 cups lechuga, 1/4 tomate, 1/4 pepino, 1/4 zanahoria, aderezo limon",
+    "id": "default_72"
+  },
+  {
+    "name": "Nopalitos con jitomate",
+    "meal": "Almuerzo",
+    "calories": 60,
+    "ingredients": "1 cup nopal cocido, 1 tomate, 1/4 cebolla, cilantro, sal",
+    "id": "default_73"
+  },
+  {
+    "name": "Arroz blanco",
+    "meal": "Almuerzo",
+    "calories": 205,
+    "ingredients": "1 cup arroz blanco cocido, sal",
+    "id": "default_74"
+  },
+  {
+    "name": "Arroz rojo mexicano",
+    "meal": "Almuerzo",
+    "calories": 215,
+    "ingredients": "1/2 cup arroz, 1/4 cup jitomate, 1/4 cebolla, caldo, 1 tsp aceite",
+    "id": "default_75"
+  },
+  {
+    "name": "Arroz integral",
+    "meal": "Almuerzo",
+    "calories": 195,
+    "ingredients": "1 cup arroz integral cocido, sal, 1 tsp aceite de oliva",
+    "id": "default_76"
+  },
+  {
+    "name": "Quinoa con verduras",
+    "meal": "Almuerzo",
+    "calories": 220,
+    "ingredients": "1 cup quinoa cocida, 1/4 pimiento, 1/4 cebolla, 1 tbsp aceite de oliva, sal",
+    "id": "default_77"
+  },
+  {
+    "name": "Taco de pollo",
+    "meal": "Almuerzo",
+    "calories": 280,
+    "ingredients": "2 tortillas de maiz, 80g pechuga de pollo, salsa verde, cilantro, cebolla",
+    "id": "default_78"
+  },
+  {
+    "name": "Taco de bistec",
+    "meal": "Almuerzo",
+    "calories": 310,
+    "ingredients": "2 tortillas de maiz, 80g bistec de res, salsa, limon, cilantro",
+    "id": "default_79"
+  },
+  {
+    "name": "Taco de jamon",
+    "meal": "Almuerzo",
+    "calories": 260,
+    "ingredients": "2 tortillas de maiz, 2 rebanadas jamon, queso, salsa",
+    "id": "default_80"
+  },
+  {
+    "name": "Quesadilla de queso",
+    "meal": "Almuerzo",
+    "calories": 320,
+    "ingredients": "1 tortilla de harina, 1/2 cup queso oaxaca, 1 tsp aceite",
+    "id": "default_81"
+  },
+  {
+    "name": "Quesadilla de pollo",
+    "meal": "Almuerzo",
+    "calories": 390,
+    "ingredients": "1 tortilla de harina, 1/2 cup queso, 80g pollo, 1 tsp aceite",
+    "id": "default_82"
+  },
+  {
+    "name": "Tlayuda de frijol",
+    "meal": "Almuerzo",
+    "calories": 380,
+    "ingredients": "1 tortilla tostada grande, 1/4 cup frijoles, 1/4 cup queso, asiento",
+    "id": "default_83"
+  },
+  {
+    "name": "Sopa de verduras",
+    "meal": "Cena",
+    "calories": 120,
+    "ingredients": "1/4 cup ejotes, 1 zanahoria, 1/4 chayote, 1/4 papa, caldo, sal",
+    "id": "default_84"
+  },
+  {
+    "name": "Caldo de pollo",
+    "meal": "Cena",
+    "calories": 160,
+    "ingredients": "1 pieza pollo, 1 zanahoria, 1/4 cebolla, 1 papa, cilantro, sal",
+    "id": "default_85"
+  },
+  {
+    "name": "Sopa de lima",
+    "meal": "Cena",
+    "calories": 170,
+    "ingredients": "1 cup caldo de pollo, 80g pollo deshebrado, limon, tortilla tostada, chile",
+    "id": "default_86"
+  },
+  {
+    "name": "Pozole rojo",
+    "meal": "Cena",
+    "calories": 290,
+    "ingredients": "1 cup maiz pozolero cocido, 100g cerdo, chile guajillo, cebolla, oregano",
+    "id": "default_87"
+  },
+  {
+    "name": "Sopa de jitomate",
+    "meal": "Cena",
+    "calories": 80,
+    "ingredients": "2 jitomates, 1/4 cebolla, 1 diente ajo, caldo, sal",
+    "id": "default_88"
+  },
+  {
+    "name": "Crema de brocoli",
+    "meal": "Cena",
+    "calories": 120,
+    "ingredients": "1 cup brocoli, 1/4 cebolla, 1/4 cup leche, caldo, sal",
+    "id": "default_89"
+  },
+  {
+    "name": "Manzana con limon",
+    "meal": "Merienda",
+    "calories": 80,
+    "ingredients": "1 manzana en gajos, jugo de limon, chile en polvo",
+    "id": "default_90"
+  },
+  {
+    "name": "Pera natural",
+    "meal": "Merienda",
+    "calories": 75,
+    "ingredients": "1 pera mediana",
+    "id": "default_91"
+  },
+  {
+    "name": "Mango natural",
+    "meal": "Merienda",
+    "calories": 100,
+    "ingredients": "1 mango mediano en rebanadas",
+    "id": "default_92"
+  },
+  {
+    "name": "Ensalada de frutas",
+    "meal": "Merienda",
+    "calories": 120,
+    "ingredients": "1/2 mango, 1/2 manzana, 1/2 pera, jugo de limon",
+    "id": "default_93"
+  },
+  {
+    "name": "Platano con cacahuate",
+    "meal": "Merienda",
+    "calories": 215,
+    "ingredients": "1 platano, 1 tbsp mantequilla de mani",
+    "id": "default_94"
+  },
+  {
+    "name": "Guacamole con totopos",
+    "meal": "Merienda",
+    "calories": 320,
+    "ingredients": "1/2 aguacate, limon, sal, cilantro, 1 oz totopos",
+    "id": "default_95"
+  },
+  {
+    "name": "Jicama con chile y limon",
+    "meal": "Merienda",
+    "calories": 55,
+    "ingredients": "1 cup jicama en bastones, limon, chile en polvo, sal",
+    "id": "default_96"
+  },
+  {
+    "name": "Zanahoria con hummus",
+    "meal": "Merienda",
+    "calories": 120,
+    "ingredients": "1 zanahoria en bastones, 3 tbsp hummus",
+    "id": "default_97"
+  },
+  {
+    "name": "Nueces mixtas",
+    "meal": "Merienda",
+    "calories": 185,
+    "ingredients": "1 oz nueces mixtas (nuez, almendra, pistache)",
+    "id": "default_98"
+  },
+  {
+    "name": "Edamame",
+    "meal": "Merienda",
+    "calories": 120,
+    "ingredients": "1 cup edamame cocido, sal",
+    "id": "default_99"
+  }
+]
+
+function seedDefaultRecipes(user) {
+  const existing = state.recipes[user];
+  // Skip if user already has recipes (don't reset their custom ones)
+  if (existing && existing.length > 0) return;
+
+  state.recipes[user] = DEFAULT_RECIPES.map((r, i) => ({
+    ...r,
+    id:        `default_${i}_${user}`,
+    isDefault: true
+  }));
+  saveRecipesToStorage(user);
+}
+
+async function pushDefaultRecipesToSheets(user) {
+  if (!CONFIG.scriptUrl) return;
+  const recipes = state.recipes[user];
+  if (!recipes || !recipes.length) return;
+  // seedRecipes action inserts all at once only if Sheets has none for this user
+  await apiCall({ action: 'seedRecipes', user, recipes });
+}
+
 /* ── INIT ───────────────────────────────────────────────────── */
 async function init() {
   // 1. Load localStorage
   loadEntriesFromStorage('A');
   loadEntriesFromStorage('B');
+  // Seed default recipes for any profile that has none
+  seedDefaultRecipes('A');
+  seedDefaultRecipes('B');
 
   // 2. Init date picker with today's date
   const dp = document.getElementById('datePicker');
@@ -3238,6 +4200,9 @@ async function init() {
     setSyncStatus('syncing');
     await Promise.all([syncProfile('A'), syncProfile('B')]);
     await syncTodayEntries(state.profile);
+    // Push default recipes to Sheets if they're not there yet
+    await pushDefaultRecipesToSheets('A');
+    await pushDefaultRecipesToSheets('B');
     setSyncStatus('online');
   } else {
     setSyncStatus('local');
