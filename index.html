@@ -494,6 +494,25 @@
     .sync-dot.syncing { background: var(--ice); animation: pulse 1s ease-in-out infinite; }
     .sync-dot.error   { background: var(--danger); }
 
+
+    /* ── SYNC LOCKED BANNER ────────────────────────────────────── */
+    .sync-locked-banner {
+      display: flex; gap: 0.85rem; align-items: flex-start;
+      background: var(--lime-dim);
+      border: 1px solid var(--border-act);
+      border-radius: var(--r-sm);
+      padding: 0.9rem 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .sync-lock-icon { font-size: 1.4rem; line-height: 1; flex-shrink: 0; }
+    .sync-lock-title {
+      font-size: 0.82rem; font-weight: 700;
+      color: var(--lime); margin-bottom: 0.3rem;
+    }
+    .sync-lock-sub {
+      font-size: 0.75rem; color: var(--text-2); line-height: 1.5;
+    }
+
     /* ── SCROLLBAR ─────────────────────────────────────────────── */
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -749,17 +768,9 @@
     <button class="modal-close" onclick="closeSettings()">✕</button>
     <div class="modal-title">Configuración</div>
 
-    <div class="config-banner">
-      <strong>🔗 Google Sheets Backend:</strong> Pega tu URL de Apps Script abajo para activar la sincronización en la nube.
-      <br><br>
-      Si no configuras URL, los datos se guardan <strong>localmente</strong> (localStorage).
+    <div id="syncConfigBlock">
+      <!-- Populated by renderSyncBlock() at runtime -->
     </div>
-
-    <div class="form-group">
-      <label>URL Google Apps Script</label>
-      <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/AKfycbxnauYtqLh1D7jy8o7IDCt6PqE1r7el7_jeIHXyWW3a-YVy5iL5wLGUrfEHRrxsJ5TK/exec" />
-    </div>
-    <button class="btn-secondary" style="margin-top:0;margin-bottom:1.25rem;" onclick="testConnection()">Probar conexión</button>
 
     <div class="settings-tabs">
       <button class="settings-tab active" id="stab-A" onclick="switchSettingsProfile('A')">Usuario A</button>
@@ -817,9 +828,15 @@
 ═══════════════════════════════════════════════════════════════ -->
 <script>
 /* ── CONFIGURATION ──────────────────────────────────────────── */
+// __APPS_SCRIPT_URL__ is replaced at build-time by GitHub Actions.
+// If the token is still present (local dev), we fall back to localStorage.
+const _BAKED_URL = '__APPS_SCRIPT_URL__';
+const _IS_CI     = !_BAKED_URL.startsWith('__'); // true only after CI substitution
+
 const CONFIG = {
-  scriptUrl: localStorage.getItem('vita_scriptUrl') || '',
-  timeout: 8000
+  scriptUrl:      _IS_CI ? _BAKED_URL : (localStorage.getItem('vita_scriptUrl') || ''),
+  isPreconfigured: _IS_CI,   // locks the URL field in the Settings UI
+  timeout:        8000
 };
 
 /* ── STATE ──────────────────────────────────────────────────── */
@@ -1256,9 +1273,35 @@ function renderHistorial() {
 }
 
 /* ── SETTINGS MODAL ─────────────────────────────────────────── */
+function renderSyncBlock() {
+  const el = document.getElementById('syncConfigBlock');
+  if (!el) return;
+  if (CONFIG.isPreconfigured) {
+    el.innerHTML = `
+      <div class="sync-locked-banner">
+        <span class="sync-lock-icon">🔒</span>
+        <div>
+          <div class="sync-lock-title">Sincronización configurada via CI/CD</div>
+          <div class="sync-lock-sub">La URL de Apps Script fue inyectada de forma segura durante el despliegue. No es visible ni editable desde la app.</div>
+        </div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="config-banner">
+        <strong>🔗 Google Sheets Backend:</strong> Pega tu URL de Apps Script para activar sincronización en la nube.
+        <br><br>Si no configuras URL, los datos se guardan <strong>localmente</strong> (localStorage).
+      </div>
+      <div class="form-group">
+        <label>URL Google Apps Script</label>
+        <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec"
+          value="${CONFIG.scriptUrl}" />
+      </div>
+      <button class="btn-secondary" style="margin-top:0;margin-bottom:1.25rem;" onclick="testConnection()">Probar conexión</button>`;
+  }
+}
 function openSettings() {
+  renderSyncBlock();
   loadSettingsForm(state.settingsProfile);
-  document.getElementById('scriptUrl').value = CONFIG.scriptUrl;
   document.getElementById('settingsModal').classList.add('open');
 }
 function closeSettings() {
@@ -1292,12 +1335,17 @@ async function saveSettings() {
   state.profiles[user] = profile;
   saveProfileToStorage(user, profile);
 
-  // Save script URL
-  const url = document.getElementById('scriptUrl').value.trim();
-  CONFIG.scriptUrl = url;
-  localStorage.setItem('vita_scriptUrl', url);
+  // Save script URL — only if NOT pre-configured by CI
+  if (!CONFIG.isPreconfigured) {
+    const urlEl = document.getElementById('scriptUrl');
+    if (urlEl) {
+      const url = urlEl.value.trim();
+      CONFIG.scriptUrl = url;
+      localStorage.setItem('vita_scriptUrl', url);
+    }
+  }
 
-  if (url) {
+  if (CONFIG.scriptUrl) {
     await pushProfile(user, profile);
   }
 
@@ -1307,11 +1355,15 @@ async function saveSettings() {
 }
 
 async function testConnection() {
-  const url = document.getElementById('scriptUrl').value.trim();
+  const urlEl = document.getElementById('scriptUrl');
+  const url   = urlEl ? urlEl.value.trim() : CONFIG.scriptUrl;
   if (!url) { showToast('Ingresa una URL primero', 'error'); return; }
   showToast('Probando conexión…', 'loading');
+  // Temporarily set for the ping without persisting
+  const prev = CONFIG.scriptUrl;
   CONFIG.scriptUrl = url;
   const result = await apiGet({ action: 'ping' });
+  CONFIG.scriptUrl = prev || url;
   if (result && result.status === 'ok') {
     showToast('Conexión exitosa ✓', 'success');
   } else {
