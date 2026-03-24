@@ -762,6 +762,35 @@
     .ingredient-input-wrap { position: relative; flex: 1; }
     .ingredient-input-wrap .ac-dropdown { top: calc(100% + 2px); }
 
+
+    /* ── CALORIE ALWAYS ROW ────────────────────────────────────── */
+    .calorie-always-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: .75rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: .75rem 1rem;
+      margin-top: .1rem;
+      transition: border-color var(--transition);
+    }
+    .calorie-always-row:focus-within { border-color: var(--border-act); }
+    .calorie-always-left {
+      display: flex; align-items: center; gap: .5rem; flex-shrink: 0;
+    }
+    .calorie-always-label {
+      font-size: .72rem; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text-2);
+    }
+    .calorie-always-input-wrap {
+      display: flex; align-items: baseline; gap: .35rem; flex: 1; justify-content: flex-end;
+    }
+    .calorie-always-input-wrap .calorie-result-input {
+      font-size: 1.6rem !important;
+      width: 130px !important; text-align: right;
+    }
+    .calorie-always-input-wrap .calorie-result-unit { color: var(--text-2); font-size: .85rem; }
+
     /* ── SYNC LOCKED BANNER ────────────────────────────────────── */
     .sync-locked-banner {
       display: flex; gap: 0.85rem; align-items: flex-start;
@@ -954,25 +983,33 @@
         <div class="macro-chip"><span class="macro-val" id="mFiber">0</span><span class="macro-lbl">g Fibra</span></div>
       </div>
 
-      <!-- Total calories — live-updating as ingredients are resolved -->
+      <!-- Estimate button -->
+      <button class="btn-estimate" id="btnEstimateFood" onclick="estimateFoodCalories()">
+        <span class="btn-estimate-icon">✦</span>
+        <span id="btnEstimateFoodLabel">Calcular calorías</span>
+      </button>
+
+      <!-- Breakdown list — hidden until estimated -->
       <div id="foodBreakdownWrap" style="display:none">
         <div class="breakdown-list" id="foodBreakdownList"></div>
-        <div class="breakdown-total-row">
-          <span class="breakdown-total-label">Total</span>
-          <div class="calorie-result-row" style="margin-bottom:0">
-            <input type="number" id="foodCalories" class="calorie-result-input"
-              min="0" placeholder="0" oninput="markFoodManual()" />
-            <span class="calorie-result-unit">kcal</span>
-          </div>
+      </div>
+
+      <!-- Calorie total — always visible so user can type manually or see estimate -->
+      <div class="calorie-always-row">
+        <div class="calorie-always-left">
+          <span class="calorie-always-label">Total kcal</span>
+          <span class="calorie-result-badge" id="foodCalBadge" style="display:none">API Ninjas</span>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.4rem">
-          <span class="calorie-result-badge" id="foodCalBadge">API Ninjas</span>
-          <span class="calorie-result-hint">Edita el total para corregir</span>
+        <div class="calorie-always-input-wrap">
+          <input type="number" id="foodCalories" class="calorie-result-input"
+            min="0" placeholder="0 — escribe o calcula →"
+            oninput="onFoodCaloriesInput()" />
+          <span class="calorie-result-unit">kcal</span>
         </div>
       </div>
 
-      <button class="btn-primary" id="btnSaveFood" onclick="submitFood()" disabled
-        style="margin-top:.85rem">
+      <button class="btn-primary" id="btnSaveFood" onclick="submitFood()"
+        style="margin-top:.75rem">
         Guardar comida
       </button>
     </div>
@@ -1699,26 +1736,40 @@ function showFoodResult(totalCal, breakdownArr, source) {
 
   document.getElementById('foodCalories').value = totalCal;
   document.getElementById('foodCalories').classList.remove('manual-edited');
-  document.getElementById('foodCalBadge').textContent = source;
-  document.getElementById('foodCalBadge').className   = 'calorie-result-badge';
-  document.getElementById('foodBreakdownWrap').style.display = 'block';
-  document.getElementById('btnSaveFood').disabled = false;
+  const badge = document.getElementById('foodCalBadge');
+  badge.textContent = source;
+  badge.className   = 'calorie-result-badge';
+  badge.style.display = 'inline-flex';
+  const wrap = document.getElementById('foodBreakdownWrap');
+  if (wrap) wrap.style.display = breakdownArr.length ? 'block' : 'none';
 }
 
 function markFoodManual() {
-  document.getElementById('foodCalBadge').textContent = 'Manual';
-  document.getElementById('foodCalBadge').className   = 'calorie-result-badge manual';
+  const badge = document.getElementById('foodCalBadge');
+  badge.textContent   = 'Manual';
+  badge.className     = 'calorie-result-badge manual';
+  badge.style.display = 'inline-flex';
   document.getElementById('foodCalories').classList.add('manual-edited');
-  document.getElementById('btnSaveFood').disabled = false;
+}
+
+// Called whenever user types directly in the calorie field
+function onFoodCaloriesInput() {
+  const badge = document.getElementById('foodCalBadge');
+  badge.textContent   = 'Manual';
+  badge.className     = 'calorie-result-badge manual';
+  badge.style.display = 'inline-flex';
+  document.getElementById('foodCalories').classList.add('manual-edited');
 }
 
 function resetFoodCalc() {
   const wrap  = document.getElementById('foodBreakdownWrap');
-  const save  = document.getElementById('btnSaveFood');
   const label = document.getElementById('btnEstimateFoodLabel');
-  if (wrap)  wrap.style.display = 'none';
-  if (save)  save.disabled      = true;
-  if (label) label.textContent  = 'Calcular calorías';
+  const badge = document.getElementById('foodCalBadge');
+  if (wrap)  wrap.style.display  = 'none';
+  if (label) label.textContent   = 'Calcular calorías';
+  // Do NOT clear the calorie value — user may have typed it manually
+  // Do NOT disable save button — it should always be clickable
+  if (badge) badge.style.display = 'none';
   document.querySelectorAll('.ingredient-cal-badge').forEach(b => {
     b.style.display = 'none'; b.textContent = '';
   });
@@ -1774,7 +1825,11 @@ async function submitFood() {
   const name  = document.getElementById('foodName').value.trim() || lines.slice(0,2).join(', ');
 
   if (!lines.length) { showToast('Agrega al menos un ingrediente', 'error'); return; }
-  if (isNaN(cals) || cals < 0) { showToast('Estimación de calorías inválida', 'error'); return; }
+  if (!cals || isNaN(cals) || cals < 0) {
+    showToast('Ingresa o calcula las calorías primero', 'error');
+    document.getElementById('foodCalories').focus();
+    return;
+  }
 
   const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
   const entry = {
@@ -1795,6 +1850,7 @@ async function submitFood() {
 
   // Reset
   document.getElementById('foodName').value = '';
+  document.getElementById('foodCalories').value = '';
   document.getElementById('ingredientRows').innerHTML = '';
   _ingredientIdCounter = 0;
   Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
