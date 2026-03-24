@@ -718,21 +718,6 @@
     .ac-item:hover { background: var(--lime-dim); color: var(--lime); }
     .ac-item strong { color: var(--lime); }
 
-    /* ── INPUT + ACTION BUTTON ROW ─────────────────────────────── */
-    .input-action-row { display: flex; gap: .4rem; position: relative; }
-    .input-action-row input { flex: 1; }
-    .btn-lookup {
-      width: 40px; height: 40px; flex-shrink: 0;
-      border-radius: var(--r-sm);
-      border: 1px solid var(--border);
-      background: var(--bg-input);
-      font-size: 1.1rem;
-      display: flex; align-items: center; justify-content: center;
-      transition: all var(--transition);
-      cursor: pointer;
-    }
-    .btn-lookup:hover  { border-color: var(--border-act); background: var(--lime-dim); }
-    .btn-lookup:disabled { opacity: .5; cursor: not-allowed; }
 
     /* ── MACROS BAR ────────────────────────────────────────────── */
     .macros-bar {
@@ -928,21 +913,10 @@
     <div class="form-card">
       <div class="form-title">➕ Registrar Comida</div>
 
-      <!-- Row: dish name + recipe lookup + meal -->
       <div class="form-group" style="margin-bottom:.6rem">
-        <label>Nombre del plato</label>
-        <div class="input-action-row">
-          <input type="text" id="foodName" placeholder="Ej: Hamburguesa, Tacos, Ensalada César"
-            oninput="onFoodNameInput(event)" autocomplete="off"
-            onblur="setTimeout(()=>hideDropdown('recipeSuggestions'),150)" />
-          <button class="btn-lookup" id="btnRecipeLookup" onclick="lookupRecipe()"
-            title="Buscar receta y auto-llenar ingredientes">
-            <span id="recipeLookupIcon">📖</span>
-          </button>
-        </div>
-        <div class="field-hint">Escribe el plato y toca 📖 para buscar su receta e ingredientes</div>
-        <!-- Recipe suggestions dropdown -->
-        <div class="ac-dropdown" id="recipeSuggestions" style="display:none"></div>
+        <label>Nombre del plato <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+        <input type="text" id="foodName" placeholder="Ej: Hamburguesa, Almuerzo, Cena del martes"
+          autocomplete="off" />
       </div>
 
       <div class="form-grid-2" style="margin-bottom:.85rem;">
@@ -965,7 +939,7 @@
       <!-- Ingredient list with per-row autocomplete -->
       <div class="ingredients-header">
         <span class="ingredients-label">Ingredientes</span>
-        <span class="ingredients-hint">Escribe para buscar · selecciona para agregar kcal</span>
+        <span class="ingredients-hint">Cantidad + alimento, ej: "2 white bread slices"</span>
       </div>
       <div id="ingredientRows"></div>
       <button class="btn-add-ingredient" onclick="addIngredientRow()">
@@ -1495,76 +1469,12 @@ function hideDropdown(id) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   FOOD — RECIPE LOOKUP + INGREDIENT AUTOCOMPLETE
+   FOOD — INGREDIENT ROWS + NUTRITION API
 ═══════════════════════════════════════════════════════════════ */
 
-/* ── RECIPE LOOKUP via /recipe ───────────────────────────────── */
-async function lookupRecipe() {
-  const name = document.getElementById('foodName').value.trim();
-  if (!name) { showToast('Escribe el nombre del plato primero', 'error'); return; }
-  if (!hasApiKey()) { showToast('Configura tu API Ninjas key en ⚙ Configuración', 'error'); return; }
-
-  const btn  = document.getElementById('btnRecipeLookup');
-  const icon = document.getElementById('recipeLookupIcon');
-  btn.disabled = true;
-  icon.textContent = '⏳';
-
-  try {
-    const data    = await anFetch(`/recipe?query=${encodeURIComponent(name)}`);
-    const recipes = data.slice ? data : [];
-
-    if (!recipes.length) {
-      showToast('No se encontró receta — agrega ingredientes manualmente', 'error');
-      icon.textContent = '📖'; btn.disabled = false;
-      return;
-    }
-
-    if (recipes.length === 1) {
-      applyRecipe(recipes[0]);
-    } else {
-      // Show up to 4 recipe options to pick from
-      showDropdown('recipeSuggestions',
-        recipes.slice(0, 4).map(r => ({ label: `📖 ${r.title}`, data: r })),
-        (item) => applyRecipe(item.data)
-      );
-    }
-  } catch (err) {
-    showToast('Error buscando receta: ' + err.message, 'error');
-  }
-  icon.textContent = '📖'; btn.disabled = false;
-}
-
-function applyRecipe(recipe) {
-  if (!recipe) return;
-  // Set dish name from recipe title
-  document.getElementById('foodName').value = recipe.title || '';
-  document.getElementById('recipeSuggestions').style.display = 'none';
-
-  // Parse ingredients from recipe.ingredients string
-  // API Ninjas returns a pipe-separated or newline list like "2 cups flour|1 egg|..."
-  const raw = recipe.ingredients || '';
-  const lines = raw.replace(/\|/g, '\n').split('\n').map(s => s.trim()).filter(Boolean);
-
-  if (!lines.length) {
-    showToast('Receta encontrada pero sin lista de ingredientes — agrégalos manualmente', 'loading');
-    return;
-  }
-
-  // Clear existing rows and populate with recipe ingredients
-  document.getElementById('ingredientRows').innerHTML = '';
-  _ingredientIdCounter = 0;
-  lines.slice(0, 12).forEach(line => addIngredientRow(line, true));
-
-  showToast(`Receta "${recipe.title}" cargada con ${lines.length} ingredientes`, 'success');
-  resetFoodCalc();
-  // Auto-trigger nutrition lookup for all filled rows
-  setTimeout(() => estimateFoodCalories(), 300);
-}
-
 /* ── INGREDIENT ROWS ─────────────────────────────────────────── */
-let _ingredientIdCounter  = 0;
-// Store resolved nutrition data per row id
-const _rowNutrition = {};
+let _ingredientIdCounter = 0;
+const _rowNutrition = {};   // cache: rowId → nutrition object from API
 
 function addIngredientRow(defaultText, skipFocus) {
   const id   = ++_ingredientIdCounter;
@@ -1576,11 +1486,11 @@ function addIngredientRow(defaultText, skipFocus) {
   row.innerHTML = `
     <div class="ingredient-input-wrap" style="flex:1;position:relative">
       <input type="text" class="ingredient-input" id="ing-${id}"
-        placeholder="Ej: 2 panes blancos, 100g carne de res..."
+        placeholder="Ej: 2 white bread slices, 100g beef patty..."
         value="${escHtml(defaultText || '')}"
         autocomplete="off"
         oninput="onIngredientInput(event, ${id})"
-        onblur="hideDropdown('ing-ac-${id}')" />
+        onblur="setTimeout(()=>hideDropdown('ing-ac-${id}'),150)" />
       <div class="ac-dropdown" id="ing-ac-${id}" style="display:none"></div>
     </div>
     <span class="ingredient-cal-badge" id="ing-cal-${id}" style="display:none"></span>
@@ -1591,47 +1501,6 @@ function addIngredientRow(defaultText, skipFocus) {
     if (inp) inp.focus();
   }
   resetFoodCalc();
-}
-
-// Debounced nutrition search per row
-const _ingSearchDebounced = {};
-function onIngredientInput(e, rowId) {
-  resetFoodCalc();
-  if (!hasApiKey()) return;
-  if (!_ingSearchDebounced[rowId]) {
-    _ingSearchDebounced[rowId] = debounce((id, q) => searchIngredient(id, q), 420);
-  }
-  _ingSearchDebounced[rowId](rowId, e.target.value.trim());
-}
-
-async function searchIngredient(rowId, query) {
-  if (query.length < 2) { hideDropdown(`ing-ac-${rowId}`); return; }
-  try {
-    const items = await anFetch(`/nutrition?query=${encodeURIComponent(query)}`);
-    if (!items.length) { hideDropdown(`ing-ac-${rowId}`); return; }
-    showDropdown(`ing-ac-${rowId}`,
-      items.slice(0, 5).map(f => ({
-        label: `${f.name} — <strong>${Math.round(f.calories)} kcal</strong> / ${f.serving_size_g}g`,
-        data: f
-      })),
-      (item) => selectIngredient(rowId, item.data)
-    );
-  } catch (_) { /* silent */ }
-}
-
-function selectIngredient(rowId, food) {
-  const inp = document.getElementById(`ing-${rowId}`);
-  if (inp) inp.value = food.name;
-  _rowNutrition[rowId] = food;
-  setBadge(rowId, Math.round(food.calories));
-  updateTotalsFromResolved();
-}
-
-function setBadge(rowId, kcal) {
-  const b = document.getElementById(`ing-cal-${rowId}`);
-  if (!b) return;
-  b.textContent = `${kcal} kcal`;
-  b.style.display = 'inline-flex';
 }
 
 function removeIngredientRow(id) {
@@ -1649,29 +1518,76 @@ function getIngredientLines() {
     .filter(Boolean);
 }
 
-/* ── LIVE TOTAL FROM ALREADY-RESOLVED ROWS ───────────────────── */
+/* ── PER-ROW AUTOCOMPLETE via /v1/nutrition ──────────────────── */
+// Each row queries /v1/nutrition as the user types.
+// The API returns items[] scaled to the quantity in the query text.
+// We show up to 5 suggestions with name + kcal + serving size.
+
+const _ingSearchDebounced = {};
+
+function onIngredientInput(e, rowId) {
+  resetFoodCalc();
+  if (!hasApiKey()) return;
+  if (!_ingSearchDebounced[rowId]) {
+    _ingSearchDebounced[rowId] = debounce((id, q) => searchIngredient(id, q), 400);
+  }
+  _ingSearchDebounced[rowId](rowId, e.target.value.trim());
+}
+
+async function searchIngredient(rowId, query) {
+  if (query.length < 2) { hideDropdown(`ing-ac-${rowId}`); return; }
+  try {
+    // Encode commas as %2C per API docs to avoid server parsing issues
+    const safeQuery = query.replace(/,/g, '%2C');
+    const items = await anFetch(`/nutrition?query=${encodeURIComponent(safeQuery)}`);
+    if (!items || !items.length) { hideDropdown(`ing-ac-${rowId}`); return; }
+    showDropdown(
+      `ing-ac-${rowId}`,
+      items.slice(0, 5).map(f => ({
+        label: `${f.name} &mdash; <strong>${Math.round(f.calories)} kcal</strong> <small>(${f.serving_size_g}g)</small>`,
+        data:  f
+      })),
+      (item) => selectIngredient(rowId, item.data)
+    );
+  } catch (_) { hideDropdown(`ing-ac-${rowId}`); }
+}
+
+function selectIngredient(rowId, food) {
+  // Fill the input with the recognized food name so the final estimate stays consistent
+  const inp = document.getElementById(`ing-${rowId}`);
+  if (inp) inp.value = food.name;
+  _rowNutrition[rowId] = food;
+  setBadge(rowId, Math.round(food.calories));
+  hideDropdown(`ing-ac-${rowId}`);
+  updateTotalsFromResolved();
+}
+
+function setBadge(rowId, kcal) {
+  const b = document.getElementById(`ing-cal-${rowId}`);
+  if (!b) return;
+  b.textContent   = `${kcal} kcal`;
+  b.style.display = 'inline-flex';
+}
+
+/* ── MACROS — live update from already-resolved rows ─────────── */
 function updateTotalsFromResolved() {
   const resolved = Object.values(_rowNutrition);
-  if (!resolved.length) {
-    const macros = document.getElementById('macrosSummary');
-    if (macros) macros.style.display = 'none';
-    return;
-  }
-  const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
-  const total = resolved.reduce((s,f) => ({
-    calories:          s.calories          + (f.calories          || 0),
-    protein_g:         s.protein_g         + (f.protein_g         || 0),
-    carbohydrates_total_g: s.carbohydrates_total_g + (f.carbohydrates_total_g || 0),
-    fat_total_g:       s.fat_total_g       + (f.fat_total_g       || 0),
-    fiber_g:           s.fiber_g           + (f.fiber_g           || 0),
-  }), {calories:0, protein_g:0, carbohydrates_total_g:0, fat_total_g:0, fiber_g:0});
+  const macros   = document.getElementById('macrosSummary');
+  if (!resolved.length) { if (macros) macros.style.display = 'none'; return; }
 
-  const p = portions;
-  document.getElementById('mProtein').textContent = Math.round(total.protein_g * p);
-  document.getElementById('mCarbs').textContent   = Math.round(total.carbohydrates_total_g * p);
-  document.getElementById('mFat').textContent     = Math.round(total.fat_total_g * p);
-  document.getElementById('mFiber').textContent   = Math.round(total.fiber_g * p);
-  const macros = document.getElementById('macrosSummary');
+  const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
+  const sum = resolved.reduce((s, f) => ({
+    calories:              s.calories              + (f.calories              || 0),
+    protein_g:             s.protein_g             + (f.protein_g             || 0),
+    carbohydrates_total_g: s.carbohydrates_total_g + (f.carbohydrates_total_g || 0),
+    fat_total_g:           s.fat_total_g           + (f.fat_total_g           || 0),
+    fiber_g:               s.fiber_g               + (f.fiber_g               || 0),
+  }), { calories:0, protein_g:0, carbohydrates_total_g:0, fat_total_g:0, fiber_g:0 });
+
+  document.getElementById('mProtein').textContent = Math.round(sum.protein_g             * portions);
+  document.getElementById('mCarbs').textContent   = Math.round(sum.carbohydrates_total_g * portions);
+  document.getElementById('mFat').textContent     = Math.round(sum.fat_total_g           * portions);
+  document.getElementById('mFiber').textContent   = Math.round(sum.fiber_g               * portions);
   if (macros) macros.style.display = 'flex';
 }
 
@@ -1680,25 +1596,13 @@ function onPortionsChange() {
   resetFoodCalc();
 }
 
-/* ── FOOD NAME AUTOCOMPLETE (recipe suggestions) ─────────────── */
-const _foodNameDebounced = debounce(async (q) => {
-  if (!hasApiKey() || q.length < 2) { hideDropdown('recipeSuggestions'); return; }
-  try {
-    const data = await anFetch(`/recipe?query=${encodeURIComponent(q)}`);
-    const recipes = (data.slice ? data : []).slice(0, 4);
-    if (!recipes.length) { hideDropdown('recipeSuggestions'); return; }
-    showDropdown('recipeSuggestions',
-      recipes.map(r => ({ label: `📖 ${r.title}`, data: r })),
-      (item) => { document.getElementById('foodName').value = item.data.title; hideDropdown('recipeSuggestions'); }
-    );
-  } catch (_) { hideDropdown('recipeSuggestions'); }
-}, 500);
+/* ── FULL NUTRITION FETCH via /v1/nutrition ──────────────────── */
+// Per the API docs, the query can describe multiple items using "and":
+//   "1lb brisket and fries" → returns an array, one object per food.
+// We join all ingredient rows with " and " into a single request.
+// The API handles quantities automatically ("2 white bread slices" scales correctly).
+// Commas in individual items are URL-encoded as %2C.
 
-function onFoodNameInput(e) {
-  _foodNameDebounced(e.target.value.trim());
-}
-
-/* ── FULL NUTRITION FETCH for all ingredients ────────────────── */
 async function estimateFoodCalories() {
   const lines = getIngredientLines();
   if (!lines.length) { showToast('Agrega al menos un ingrediente', 'error'); return; }
@@ -1713,64 +1617,72 @@ async function estimateFoodCalories() {
     b.style.display = 'none'; b.textContent = '';
   });
 
-  const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
+  const portions  = parseFloat(document.getElementById('foodPortions')?.value) || 1;
+  const inputEls  = [...document.querySelectorAll('.ingredient-input')];
 
   if (hasApiKey()) {
-    // Fetch each ingredient individually for accurate per-item results
-    const results = await Promise.allSettled(
-      lines.map((line, i) =>
-        anFetch(`/nutrition?query=${encodeURIComponent(line)}`)
-          .then(items => ({ line, items: items || [], idx: i }))
-      )
-    );
+    try {
+      // Join all lines with " and " — the API parses each food item separately.
+      // Encode commas inside individual items as %2C per docs.
+      const safeLines = lines.map(l => l.replace(/,/g, '%2C'));
+      const query     = safeLines.join(' and ');
+      const items     = await anFetch(`/nutrition?query=${encodeURIComponent(query)}`);
 
-    const allFoods  = [];
-    const breakdown = [];
-    const inputEls  = [...document.querySelectorAll('.ingredient-input')];
+      if (!items || !items.length) throw new Error('Sin resultados — intenta con nombres en inglés');
 
-    results.forEach((r, i) => {
-      if (r.status === 'fulfilled' && r.value.items.length) {
-        const foods = r.value.items;
-        const cal   = Math.round(foods.reduce((s, f) => s + (f.calories || 0), 0));
-        allFoods.push(...foods);
+      // Map API items back to input rows (best-effort by position)
+      const breakdown = [];
+      let   totalCal  = 0;
 
-        // Update row badge
+      items.forEach((food, i) => {
+        const cal = Math.round(food.calories || 0);
+        totalCal += cal;
+
+        // Update badge on matching row
         const el = inputEls[i];
         if (el) {
           const rowId = el.id.replace('ing-', '');
           setBadge(rowId, cal);
-          // Cache for macros
-          if (foods.length) _rowNutrition[rowId] = foods.reduce((acc, f) => ({
-            calories:              acc.calories              + (f.calories || 0),
-            protein_g:             acc.protein_g             + (f.protein_g || 0),
-            carbohydrates_total_g: acc.carbohydrates_total_g + (f.carbohydrates_total_g || 0),
-            fat_total_g:           acc.fat_total_g           + (f.fat_total_g || 0),
-            fiber_g:               acc.fiber_g               + (f.fiber_g || 0),
-          }), {calories:0,protein_g:0,carbohydrates_total_g:0,fat_total_g:0,fiber_g:0});
+          _rowNutrition[rowId] = food;  // cache for macros
         }
 
-        const detail = foods.map(f => `${f.name} ${Math.round(f.calories)}kcal`).join(' + ');
-        breakdown.push(`${r.value.line} — ${cal} kcal  (${detail})`);
-      } else {
-        // Fallback for this line
-        const fb = roughFoodEstimateLines([lines[i]]);
-        breakdown.push(fb.breakdown[0]);
-        const cal = fb.total;
-        const el  = inputEls[i];
-        if (el) setBadge(el.id.replace('ing-', ''), cal);
-        allFoods.push({ calories: cal });
-      }
-    });
+        breakdown.push(
+          `${food.name} (${food.serving_size_g}g) — ${cal} kcal`
+        );
+      });
 
-    const totalCal = Math.round(allFoods.reduce((s, f) => s + (f.calories || 0), 0) * portions);
-    showFoodResult(totalCal, breakdown, 'API Ninjas');
-    updateTotalsFromResolved();
-    label.textContent = '✓ Calculado · modifica y recalcula si es necesario';
+      // If API returned fewer items than rows (e.g. it merged some),
+      // use fallback for unmatched rows
+      if (items.length < lines.length) {
+        for (let i = items.length; i < lines.length; i++) {
+          const fb  = roughFoodEstimateLines([lines[i]]);
+          totalCal += fb.total;
+          breakdown.push(fb.breakdown[0] + ' (estimado)');
+          const el = inputEls[i];
+          if (el) setBadge(el.id.replace('ing-', ''), fb.total);
+        }
+      }
+
+      showFoodResult(Math.round(totalCal * portions), breakdown, 'API Ninjas');
+      updateTotalsFromResolved();
+      label.textContent = '✓ Calculado · modifica y vuelve a calcular si es necesario';
+
+    } catch (err) {
+      console.warn('API Ninjas nutrition error:', err.message);
+      showToast(err.message.includes('Sin resultados')
+        ? 'Sin resultados — prueba describir los ingredientes en inglés'
+        : 'Error de API — usando estimación local',
+        'error');
+      const result = roughFoodEstimateLines(lines);
+      showFoodResult(Math.round(result.total * portions), result.breakdown, 'Estimado');
+      label.textContent = '✓ Estimado (fallback local)';
+    }
 
   } else {
+    // No API key — local heuristic
     const result = roughFoodEstimateLines(lines);
     showFoodResult(Math.round(result.total * portions), result.breakdown, 'Estimado');
-    label.textContent = '✓ Estimado (sin API key)';
+    label.textContent = '✓ Estimado (sin API key — configura API Ninjas en ⚙)';
   }
 
   btn.classList.remove('loading');
@@ -1788,14 +1700,14 @@ function showFoodResult(totalCal, breakdownArr, source) {
   document.getElementById('foodCalories').value = totalCal;
   document.getElementById('foodCalories').classList.remove('manual-edited');
   document.getElementById('foodCalBadge').textContent = source;
-  document.getElementById('foodCalBadge').className = 'calorie-result-badge';
+  document.getElementById('foodCalBadge').className   = 'calorie-result-badge';
   document.getElementById('foodBreakdownWrap').style.display = 'block';
   document.getElementById('btnSaveFood').disabled = false;
 }
 
 function markFoodManual() {
   document.getElementById('foodCalBadge').textContent = 'Manual';
-  document.getElementById('foodCalBadge').className = 'calorie-result-badge manual';
+  document.getElementById('foodCalBadge').className   = 'calorie-result-badge manual';
   document.getElementById('foodCalories').classList.add('manual-edited');
   document.getElementById('btnSaveFood').disabled = false;
 }
@@ -1812,26 +1724,27 @@ function resetFoodCalc() {
   });
 }
 
-// Heuristic fallback — per line, when no API key
+// Heuristic fallback — runs when API is unavailable or returns no results
 const FOOD_PATTERNS = [
-  [/(lechuga|espinaca|verdura|vegetal|pepino|apio|brocoli|brocoli|zanahoria|tomate|jitomate)/i, 20,  'Verdura'],
-  [/(pollo|chicken|pechuga|turkey|pavo)/i,               165, 'Pollo'],
-  [/(carne|beef|res|bistec|steak|hamburguesa|burger)/i,  250, 'Carne de res'],
-  [/(cerdo|pork|tocino|bacon|jamon|jamon|salchicha)/i,   280, 'Cerdo/embutido'],
-  [/(salmon|salmon|atun|atun|pescado|tilapia|camaron)/i, 150, 'Mariscos/pescado'],
-  [/(arroz|rice)/i,                                      130, 'Arroz cocido'],
-  [/(pasta|fideos|espagueti|macarron)/i,                 220, 'Pasta cocida'],
-  [/(pan|bread|baguette|bolillo|tortilla)/i,             130, 'Pan/tortilla'],
-  [/(huevo|egg)/i,                                        78, 'Huevo'],
-  [/(leche|milk)/i,                                      120, 'Leche'],
-  [/(yogur|yogurt)/i,                                    100, 'Yogurt'],
-  [/(queso|cheese)/i,                                    113, 'Queso'],
-  [/(aguacate|avocado)/i,                                160, 'Aguacate'],
-  [/(frijol|bean|lenteja|garbanzo)/i,                    225, 'Legumbre'],
-  [/(fruta|manzana|platano|platano|banana|naranja|pera)/i, 80,'Fruta'],
-  [/(aceite|oil|mantequilla|butter|mayonesa|mayo)/i,     120, 'Grasa'],
-  [/(aderezo|dressing|salsa)/i,                           60, 'Condimento'],
-  [/(refresco|soda|jugo|juice)/i,                        150, 'Bebida azucarada'],
+  [/(lechuga|espinaca|verdura|vegetal|pepino|apio|brocoli|zanahoria|tomate|jitomate|lettuce|spinach|tomato|carrot)/i, 20,  'Verdura'],
+  [/(pollo|chicken|pechuga|turkey|pavo)/i,                                165, 'Pollo'],
+  [/(carne|beef|res|bistec|steak|brisket|hamburguesa|burger|patty)/i,     250, 'Carne de res'],
+  [/(cerdo|pork|tocino|bacon|jamon|ham|salchicha|sausage)/i,              280, 'Cerdo/embutido'],
+  [/(salmon|atun|tuna|pescado|fish|tilapia|camaron|shrimp)/i,             150, 'Mariscos/pescado'],
+  [/(arroz|rice)/i,                                                        130, 'Arroz cocido'],
+  [/(pasta|fideos|espagueti|noodle|macarron|spaghetti)/i,                 220, 'Pasta cocida'],
+  [/(pan|bread|baguette|bolillo|tortilla|bun|slice)/i,                    130, 'Pan/tortilla'],
+  [/(huevo|egg)/i,                                                          78, 'Huevo'],
+  [/(leche|milk)/i,                                                        120, 'Leche'],
+  [/(yogur|yogurt)/i,                                                      100, 'Yogurt'],
+  [/(queso|cheese)/i,                                                      113, 'Queso'],
+  [/(aguacate|avocado)/i,                                                  160, 'Aguacate'],
+  [/(frijol|bean|lenteja|lentil|garbanzo|chickpea)/i,                     225, 'Legumbre'],
+  [/(fruta|manzana|apple|platano|banana|naranja|orange|pera|pear)/i,       80, 'Fruta'],
+  [/(aceite|oil|mantequilla|butter|mayonesa|mayo)/i,                      120, 'Grasa'],
+  [/(aderezo|dressing|salsa|sauce)/i,                                       60, 'Condimento'],
+  [/(refresco|soda|jugo|juice)/i,                                          150, 'Bebida azucarada'],
+  [/(fries|papas fritas|french fries)/i,                                   312, 'Papas fritas'],
 ];
 
 function roughFoodEstimateLines(lines) {
