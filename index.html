@@ -787,7 +787,7 @@
       <!-- AI Estimate button -->
       <button class="btn-estimate" id="btnEstimateFood" onclick="estimateFoodCalories()">
         <span class="btn-estimate-icon">✦</span>
-        <span id="btnEstimateFoodLabel">Estimar calorías con IA</span>
+        <span id="btnEstimateFoodLabel">Estimar calorías</span>
       </button>
 
       <!-- Calorie result — hidden until estimated -->
@@ -855,7 +855,7 @@
       <!-- AI Estimate button -->
       <button class="btn-estimate" id="btnEstimateEx" onclick="estimateExCalories()">
         <span class="btn-estimate-icon">✦</span>
-        <span id="btnEstimateExLabel">Estimar calorías quemadas con IA</span>
+        <span id="btnEstimateExLabel">Estimar calorías quemadas</span>
       </button>
 
       <!-- Calorie result — hidden until estimated -->
@@ -992,15 +992,19 @@
 ═══════════════════════════════════════════════════════════════ -->
 <script>
 /* ── CONFIGURATION ──────────────────────────────────────────── */
-// __APPS_SCRIPT_URL__ is replaced at build-time by GitHub Actions.
-// If the token is still present (local dev), we fall back to localStorage.
-const _BAKED_URL = '__APPS_SCRIPT_URL__';
-const _IS_CI     = !_BAKED_URL.startsWith('__'); // true only after CI substitution
+// Tokens replaced at build-time by GitHub Actions — never committed to git.
+const _BAKED_URL    = '__APPS_SCRIPT_URL__';
+const _NUTRIX_ID    = '__NUTRITIONIX_APP_ID__';
+const _NUTRIX_KEY   = '__NUTRITIONIX_APP_KEY__';
+const _IS_CI        = !_BAKED_URL.startsWith('__');
+const _HAS_NUTRIX   = !_NUTRIX_ID.startsWith('__');
 
 const CONFIG = {
-  scriptUrl:      _IS_CI ? _BAKED_URL : (localStorage.getItem('vita_scriptUrl') || ''),
-  isPreconfigured: _IS_CI,   // locks the URL field in the Settings UI
-  timeout:        8000
+  scriptUrl:       _IS_CI      ? _BAKED_URL  : (localStorage.getItem('vita_scriptUrl') || ''),
+  nutritionixId:   _HAS_NUTRIX ? _NUTRIX_ID  : (localStorage.getItem('vita_nxId')  || ''),
+  nutritionixKey:  _HAS_NUTRIX ? _NUTRIX_KEY : (localStorage.getItem('vita_nxKey') || ''),
+  isPreconfigured: _IS_CI,
+  timeout:         8000
 };
 
 /* ── CI-BAKED PROFILE NAMES ─────────────────────────────────── */
@@ -1229,25 +1233,35 @@ function switchTab(tab) {
 }
 
 /* ── CLAUDE API HELPER ───────────────────────────────────────── */
-async function callClaudeEstimate(prompt) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system: `Eres un nutricionista y entrenador experto. Responde SIEMPRE con un objeto JSON válido.
-Sin texto extra, sin markdown, sin \`\`\`json. Solo el JSON puro.`,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  const data = await res.json();
-  const text = data.content?.find(b => b.type === 'text')?.text || '{}';
-  return JSON.parse(text.trim());
+/* ── NUTRITIONIX API HELPERS ─────────────────────────────────── */
+// Nutritionix is CORS-enabled and designed for browser-side calls.
+// Free tier: 500 req/day · https://developer.nutritionix.com
+// Keys are injected at build-time from GitHub Secrets — never in git.
+
+function getNxHeaders() {
+  return {
+    'Content-Type':  'application/json',
+    'x-app-id':      CONFIG.nutritionixId,
+    'x-app-key':     CONFIG.nutritionixKey,
+    'x-remote-user-id': '0'   // required by Nutritionix, any value works for public data
+  };
 }
 
-/* ── FOOD AI ESTIMATION ──────────────────────────────────────── */
+function hasNxKeys() {
+  return CONFIG.nutritionixId && CONFIG.nutritionixKey;
+}
+
+// Build a natural-language query from dish name + ingredients
+function buildFoodQuery(name, ingredients, portions) {
+  // Prefer ingredient list (more accurate); fallback to dish name
+  const base = ingredients
+    ? ingredients
+    : name;
+  // If user specified >1 portion, prefix with the count
+  return portions > 1 ? `${portions} servings of ${base}` : base;
+}
+
+/* ── FOOD ESTIMATION — Nutritionix /natural/nutrients ────────── */
 async function estimateFoodCalories() {
   const name        = document.getElementById('foodName').value.trim();
   const ingredients = document.getElementById('foodIngredients').value.trim();
@@ -1262,53 +1276,105 @@ async function estimateFoodCalories() {
   const label = document.getElementById('btnEstimateFoodLabel');
   btn.classList.add('loading');
   btn.disabled = true;
-  label.textContent = 'Estimando…';
+  label.textContent = 'Consultando base de datos…';
 
-  try {
-    const prompt = `Estima las calorías de esta comida:
-Plato: ${name || '(no especificado)'}
-Ingredientes/medidas: ${ingredients || '(no especificado)'}
-Porciones: ${portions}
+  // ── Nutritionix path ─────────────────────────────────────────
+  if (hasNxKeys()) {
+    try {
+      const query = buildFoodQuery(name, ingredients, portions);
+      const res   = await fetch('https://trackapi.nutritionix.com/v2/natural/nutrients', {
+        method:  'POST',
+        headers: getNxHeaders(),
+        body:    JSON.stringify({ query })
+      });
 
-Responde con este JSON exacto (sin texto adicional):
-{
-  "calories_per_portion": <número entero, calorías para 1 porción>,
-  "total_calories": <número entero, calories_per_portion × ${portions}>,
-  "reasoning": "<explicación breve en español de cómo llegaste al número, max 80 caracteres>"
-}`;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${res.status}`);
+      }
 
-    const result = await callClaudeEstimate(prompt);
+      const data  = await res.json();
+      const foods = data.foods || [];
 
-    const totalCal = result.total_calories || result.calories_per_portion || 0;
-    document.getElementById('foodCalories').value = totalCal;
-    document.getElementById('foodCalReasoning').textContent = result.reasoning || '';
-    document.getElementById('foodCalResult').style.display = 'block';
-    document.getElementById('foodCalBadge').textContent = 'IA';
-    document.getElementById('foodCalBadge').className = 'calorie-result-badge';
-    document.getElementById('foodCalories').classList.remove('manual-edited');
-    document.getElementById('btnSaveFood').disabled = false;
+      if (!foods.length) throw new Error('Sin resultados');
 
-    label.textContent = '✓ Estimado — vuelve a estimar si cambias algo';
-  } catch (err) {
-    showToast('Error al estimar. Ingresa las calorías manualmente.', 'error');
-    // Fallback: show the result card so user can type manually
-    document.getElementById('foodCalResult').style.display = 'block';
-    document.getElementById('foodCalReasoning').textContent = 'Estimación no disponible — ingresa el valor manualmente.';
-    document.getElementById('btnSaveFood').disabled = false;
-    label.textContent = 'Estimar calorías con IA';
-    btn.classList.remove('loading');
-    btn.disabled = false;
-    return;
+      // Sum all returned food items (Nutritionix parses each ingredient separately)
+      const totalCal   = Math.round(foods.reduce((s, f) => s + (f.nf_calories || 0), 0));
+      const breakdown  = foods
+        .map(f => `${f.food_name} ${Math.round(f.nf_calories)} kcal`)
+        .join(' · ');
+
+      showFoodResult(totalCal, breakdown, 'Nutritionix');
+      label.textContent = '✓ Estimado · vuelve a estimar si cambias algo';
+
+    } catch (err) {
+      console.warn('Nutritionix error:', err.message);
+      showFoodFallback(`Nutritionix: ${err.message}`);
+      label.textContent = 'Estimar calorías';
+    }
+
+  // ── Offline / no-keys path: MET-style formula ────────────────
+  } else {
+    // Rough heuristic from food name when no API key configured
+    const estimate = roughFoodEstimate(name, ingredients, portions);
+    showFoodResult(estimate.calories, estimate.reasoning, 'Estimado');
+    label.textContent = '✓ Estimado (sin API key)';
   }
 
   btn.classList.remove('loading');
   btn.disabled = false;
 }
 
+function showFoodResult(calories, reasoning, source) {
+  document.getElementById('foodCalories').value = calories;
+  document.getElementById('foodCalReasoning').textContent = reasoning;
+  document.getElementById('foodCalResult').style.display = 'block';
+  document.getElementById('foodCalBadge').textContent = source;
+  document.getElementById('foodCalBadge').className = 'calorie-result-badge';
+  document.getElementById('foodCalories').classList.remove('manual-edited');
+  document.getElementById('btnSaveFood').disabled = false;
+}
+
+function showFoodFallback(reason) {
+  document.getElementById('foodCalResult').style.display = 'block';
+  document.getElementById('foodCalReasoning').textContent = reason + ' — ingresa el valor manualmente.';
+  document.getElementById('foodCalBadge').textContent = 'Manual';
+  document.getElementById('foodCalBadge').className = 'calorie-result-badge manual';
+  document.getElementById('btnSaveFood').disabled = false;
+}
+
+// Simple density-based heuristic when Nutritionix unavailable
+function roughFoodEstimate(name, ingredients, portions) {
+  const text = (name + ' ' + ingredients).toLowerCase();
+  // Very rough calories/100g by food category
+  const patterns = [
+    [/(ensalada|salad|lechuga|espinaca|verdura|vegetal)/,  30,  'Ensalada/verduras ~30 kcal/100g'],
+    [/(pollo|chicken|pechuga|turkey|pavo)/,               165, 'Pollo cocido ~165 kcal/100g'],
+    [/(carne|beef|res|bistec|steak|cerdo|pork)/,          250, 'Carne roja ~250 kcal/100g'],
+    [/(arroz|rice|pasta|fideos|espagueti)/,               350, 'Carbohidrato cocido ~350 kcal/100g'],
+    [/(pan|bread|tortilla|taco)/,                         265, 'Pan/tortilla ~265 kcal/100g'],
+    [/(huevo|egg)/,                                       155, 'Huevo ~155 kcal/100g'],
+    [/(leche|milk|yogur|yogurt)/,                          60, 'Lácteo líquido ~60 kcal/100g'],
+    [/(queso|cheese)/,                                    400, 'Queso ~400 kcal/100g'],
+    [/(aguacate|avocado)/,                                160, 'Aguacate ~160 kcal/100g'],
+    [/(frijol|bean|lenteja|garbanzo)/,                    350, 'Legumbre cocida ~350 kcal/taza'],
+    [/(fruta|fruit|manzana|plátano|banana|naranja)/,       50, 'Fruta ~50 kcal/100g'],
+    [/(pizza|hamburguesa|burger|hot dog)/,                260, 'Comida rápida ~260 kcal/100g'],
+  ];
+  for (const [re, base, label] of patterns) {
+    if (re.test(text)) {
+      const cal = Math.round(base * portions);
+      return { calories: cal, reasoning: `${label} × ${portions} porción(es) ≈ ${cal} kcal` };
+    }
+  }
+  const fallback = Math.round(400 * portions);
+  return { calories: fallback, reasoning: `Estimación genérica ~400 kcal/porción × ${portions} = ${fallback} kcal` };
+}
+
 function resetFoodCalc() {
   document.getElementById('foodCalResult').style.display = 'none';
   document.getElementById('btnSaveFood').disabled = true;
-  document.getElementById('btnEstimateFoodLabel').textContent = 'Estimar calorías con IA';
+  document.getElementById('btnEstimateFoodLabel').textContent = 'Estimar calorías';
 }
 
 function markFoodManual() {
@@ -1355,71 +1421,136 @@ async function submitFood() {
   showToast('Comida registrada ✓', 'success');
 }
 
-/* ── EXERCISE AI ESTIMATION ──────────────────────────────────── */
+/* ── EXERCISE ESTIMATION — Nutritionix /natural/exercise ─────── */
+// Nutritionix exercise endpoint is personalised: uses age, weight, height, sex.
+// MET table fallback when no API keys.
+
+const MET_TABLE = [
+  // [regex, baja, media, alta, label]
+  [/(corr|run|jog|trotar)/,                      6.0,  9.0, 13.0, 'Correr'],
+  [/(caminat|caminar|walk)/,                     2.5,  3.5,  4.5, 'Caminar'],
+  [/(biciclet|ciclism|cycling|bike)/,            4.0,  7.0, 10.0, 'Ciclismo'],
+  [/(nadar|natación|swimming|swim)/,             5.0,  7.0, 10.0, 'Natación'],
+  [/(pesas|weights|gym|musculac|fuerza|lift)/,   3.0,  5.0,  6.0, 'Pesas/gym'],
+  [/(hiit|interval|tabata|crossfit)/,            7.0,  9.0, 12.0, 'HIIT/CrossFit'],
+  [/(yoga|pilates|stretching|estiramiento)/,     2.0,  3.0,  4.0, 'Yoga/Pilates'],
+  [/(fútbol|soccer|futbol|basketball|tenis)/,    7.0,  9.0, 11.0, 'Deporte de equipo'],
+  [/(elíptica|elliptical|escaladora|stair)/,     4.0,  6.5,  9.0, 'Cardio máquina'],
+  [/(bailar|baile|dance|zumba)/,                 4.5,  6.0,  8.0, 'Baile/Zumba'],
+  [/(boxeo|boxing|kickboxing|artes marciales)/,  7.0,  9.5, 12.0, 'Artes marciales'],
+  [/(remo|rowing|kayak)/,                        4.0,  7.0, 10.0, 'Remo'],
+];
+const INTENSITY_IDX = { 'Baja': 0, 'Media': 1, 'Alta': 2 };
+
+function getMET(name, notes, intensity) {
+  const text = (name + ' ' + notes).toLowerCase();
+  for (const [re, low, med, high, label] of MET_TABLE) {
+    if (re.test(text)) {
+      const idx = INTENSITY_IDX[intensity] ?? 1;
+      return { met: [low, med, high][idx], label };
+    }
+  }
+  // Generic fallback: 4/6/9 for low/medium/high
+  return { met: [4, 6, 9][INTENSITY_IDX[intensity] ?? 1], label: 'Actividad general' };
+}
+
 async function estimateExCalories() {
   const name      = document.getElementById('exName').value.trim();
   const duration  = parseInt(document.getElementById('exDuration').value) || 0;
   const intensity = document.getElementById('exIntensity').value;
   const notes     = document.getElementById('exNotes').value.trim();
 
-  if (!name) { showToast('Describe la actividad primero', 'error'); return; }
+  if (!name)     { showToast('Describe la actividad primero', 'error'); return; }
   if (!duration) { showToast('Ingresa la duración en minutos', 'error'); return; }
 
   const btn   = document.getElementById('btnEstimateEx');
   const label = document.getElementById('btnEstimateExLabel');
   btn.classList.add('loading');
   btn.disabled = true;
-  label.textContent = 'Estimando…';
+  label.textContent = 'Consultando base de datos…';
 
   const prof   = state.profiles[state.profile];
   const weight = prof.weight || 70;
+  const height = prof.height || 170;
+  const age    = prof.age    || 30;
+  const sex    = prof.sex    || 'male';
 
-  try {
-    const prompt = `Estima las calorías quemadas en este ejercicio:
-Actividad: ${name}
-Duración: ${duration} minutos
-Intensidad: ${intensity}
-Detalles adicionales: ${notes || 'ninguno'}
-Peso de la persona: ${weight} kg
+  // ── Nutritionix /natural/exercise ───────────────────────────
+  if (hasNxKeys()) {
+    try {
+      // Build query: intensity modifier + exercise + duration
+      const intensityMap = { 'Baja': 'light', 'Media': 'moderate', 'Alta': 'vigorous' };
+      const query = `${intensityMap[intensity] || 'moderate'} ${name}${notes ? ' ' + notes : ''} for ${duration} minutes`;
 
-Responde con este JSON exacto (sin texto adicional):
-{
-  "calories_burned": <número entero>,
-  "met_value": <número decimal, MET usado>,
-  "reasoning": "<explicación breve en español de cómo calculaste, max 90 caracteres>"
-}`;
+      const res = await fetch('https://trackapi.nutritionix.com/v2/natural/exercise', {
+        method:  'POST',
+        headers: getNxHeaders(),
+        body: JSON.stringify({
+          query,
+          weight_kg:  weight,
+          height_cm:  height,
+          age,
+          gender: sex === 'male' ? 'male' : 'female'
+        })
+      });
 
-    const result = await callClaudeEstimate(prompt);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${res.status}`);
+      }
 
-    const burned = result.calories_burned || 0;
-    document.getElementById('exCalories').value = burned;
-    document.getElementById('exCalReasoning').textContent = result.reasoning || '';
-    document.getElementById('exCalResult').style.display = 'block';
-    document.getElementById('exCalBadge').textContent = 'IA';
-    document.getElementById('exCalBadge').className = 'calorie-result-badge';
-    document.getElementById('exCalories').classList.remove('manual-edited');
-    document.getElementById('btnSaveEx').disabled = false;
+      const data      = await res.json();
+      const exercises = data.exercises || [];
+      if (!exercises.length) throw new Error('Sin resultados');
 
-    label.textContent = '✓ Estimado — vuelve a estimar si cambias algo';
-  } catch (err) {
-    showToast('Error al estimar. Ingresa las calorías manualmente.', 'error');
-    document.getElementById('exCalResult').style.display = 'block';
-    document.getElementById('exCalReasoning').textContent = 'Estimación no disponible — ingresa el valor manualmente.';
-    document.getElementById('btnSaveEx').disabled = false;
-    label.textContent = 'Estimar calorías quemadas con IA';
-    btn.classList.remove('loading');
-    btn.disabled = false;
-    return;
+      const totalBurned = Math.round(exercises.reduce((s, e) => s + (e.nf_calories || 0), 0));
+      const breakdown   = exercises
+        .map(e => `${e.name} (MET ${e.met?.toFixed(1) || '?'}) = ${Math.round(e.nf_calories)} kcal`)
+        .join(' · ');
+
+      showExResult(totalBurned, breakdown, 'Nutritionix');
+      label.textContent = '✓ Estimado · vuelve a estimar si cambias algo';
+
+    } catch (err) {
+      console.warn('Nutritionix exercise error:', err.message);
+      // Fallback to MET formula
+      const { met, label: actLabel } = getMET(name, notes, intensity);
+      const burned = Math.round(met * weight * (duration / 60));
+      showExResult(burned,
+        `MET ${met} (${actLabel}, ${intensity}) × ${weight}kg × ${duration}min = ${burned} kcal`,
+        'MET');
+      label.textContent = '✓ Estimado (fórmula MET)';
+    }
+
+  // ── MET formula fallback (no API keys) ──────────────────────
+  } else {
+    const { met, label: actLabel } = getMET(name, notes, intensity);
+    // Calories = MET × weight(kg) × time(h)
+    const burned = Math.round(met * weight * (duration / 60));
+    showExResult(burned,
+      `MET ${met} (${actLabel}, ${intensity}) × ${weight}kg × ${duration/60}h = ${burned} kcal`,
+      'MET');
+    label.textContent = '✓ Estimado (fórmula MET)';
   }
 
   btn.classList.remove('loading');
   btn.disabled = false;
 }
 
+function showExResult(calories, reasoning, source) {
+  document.getElementById('exCalories').value = calories;
+  document.getElementById('exCalReasoning').textContent = reasoning;
+  document.getElementById('exCalResult').style.display = 'block';
+  document.getElementById('exCalBadge').textContent = source;
+  document.getElementById('exCalBadge').className = 'calorie-result-badge';
+  document.getElementById('exCalories').classList.remove('manual-edited');
+  document.getElementById('btnSaveEx').disabled = false;
+}
+
 function resetExCalc() {
   document.getElementById('exCalResult').style.display = 'none';
   document.getElementById('btnSaveEx').disabled = true;
-  document.getElementById('btnEstimateExLabel').textContent = 'Estimar calorías quemadas con IA';
+  document.getElementById('btnEstimateExLabel').textContent = 'Estimar calorías quemadas';
 }
 
 function markExManual() {
@@ -1665,22 +1796,39 @@ function renderSyncBlock() {
       <div class="sync-locked-banner">
         <span class="sync-lock-icon">🔒</span>
         <div>
-          <div class="sync-lock-title">Sincronización configurada via CI/CD</div>
-          <div class="sync-lock-sub">La URL de Apps Script fue inyectada de forma segura durante el despliegue. No es visible ni editable desde la app.</div>
+          <div class="sync-lock-title">Claves configuradas via CI/CD</div>
+          <div class="sync-lock-sub">Apps Script URL y Nutritionix keys fueron inyectadas de forma segura al desplegar. No son visibles ni editables desde la app.</div>
         </div>
       </div>`;
   } else {
     el.innerHTML = `
       <div class="config-banner">
-        <strong>🔗 Google Sheets Backend:</strong> Pega tu URL de Apps Script para activar sincronización en la nube.
-        <br><br>Si no configuras URL, los datos se guardan <strong>localmente</strong> (localStorage).
+        <strong>🔗 Google Sheets:</strong> URL de Apps Script para sincronización.
+        <br><br>
+        <strong>🥗 Nutritionix:</strong> Keys para estimación de calorías precisa.
+        Sin keys, se usa una fórmula local (MET para ejercicio, heurística para comidas).
       </div>
       <div class="form-group">
         <label>URL Google Apps Script</label>
         <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec"
           value="${CONFIG.scriptUrl}" />
       </div>
-      <button class="btn-secondary" style="margin-top:0;margin-bottom:1.25rem;" onclick="testConnection()">Probar conexión</button>`;
+      <button class="btn-secondary" style="margin-top:0;margin-bottom:.75rem;" onclick="testConnection()">Probar conexión Sheets</button>
+      <div class="form-grid-2" style="margin-bottom:.25rem">
+        <div class="form-group" style="margin-bottom:0">
+          <label>Nutritionix App ID</label>
+          <input type="text" id="nxAppId" placeholder="xxxxxxxx"
+            value="${CONFIG.nutritionixId}" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Nutritionix App Key</label>
+          <input type="password" id="nxAppKey" placeholder="••••••••••••••••••••••••••••••••"
+            value="${CONFIG.nutritionixKey}" />
+        </div>
+      </div>
+      <div class="field-hint" style="margin-bottom:1.25rem">
+        Crea cuenta gratis en <a href="https://developer.nutritionix.com" target="_blank" style="color:var(--lime)">developer.nutritionix.com</a> — 500 req/día gratis
+      </div>`;
   }
 }
 function openSettings() {
@@ -1731,13 +1879,21 @@ async function saveSettings() {
   state.profiles[user] = profile;
   saveProfileToStorage(user, profile);
 
-  // Save script URL — only if NOT pre-configured by CI
+  // Save API keys — only if NOT pre-configured by CI
   if (!CONFIG.isPreconfigured) {
-    const urlEl = document.getElementById('scriptUrl');
+    const urlEl  = document.getElementById('scriptUrl');
+    const nxIdEl = document.getElementById('nxAppId');
+    const nxKeyEl= document.getElementById('nxAppKey');
     if (urlEl) {
       const url = urlEl.value.trim();
       CONFIG.scriptUrl = url;
       localStorage.setItem('vita_scriptUrl', url);
+    }
+    if (nxIdEl && nxKeyEl) {
+      CONFIG.nutritionixId  = nxIdEl.value.trim();
+      CONFIG.nutritionixKey = nxKeyEl.value.trim();
+      localStorage.setItem('vita_nxId',  CONFIG.nutritionixId);
+      localStorage.setItem('vita_nxKey', CONFIG.nutritionixKey);
     }
   }
 
