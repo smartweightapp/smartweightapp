@@ -695,6 +695,88 @@
     .breakdown-total-row .calorie-result-row { flex: 1; justify-content: flex-end; }
     .breakdown-total-row .calorie-result-input { font-size: 1.6rem !important; text-align: right; }
 
+
+    /* ── AUTOCOMPLETE DROPDOWN ─────────────────────────────────── */
+    .ac-dropdown {
+      position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 200;
+      background: var(--bg-card);
+      border: 1px solid var(--border-act);
+      border-radius: var(--r-sm);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      max-height: 220px; overflow-y: auto;
+    }
+    .ac-item {
+      padding: .55rem .85rem;
+      font-size: .82rem; color: var(--text);
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background var(--transition);
+      line-height: 1.4;
+    }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-item:hover { background: var(--lime-dim); color: var(--lime); }
+    .ac-item strong { color: var(--lime); }
+
+    /* ── INPUT + ACTION BUTTON ROW ─────────────────────────────── */
+    .input-action-row { display: flex; gap: .4rem; position: relative; }
+    .input-action-row input { flex: 1; }
+    .btn-lookup {
+      width: 40px; height: 40px; flex-shrink: 0;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      font-size: 1.1rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--transition);
+      cursor: pointer;
+    }
+    .btn-lookup:hover  { border-color: var(--border-act); background: var(--lime-dim); }
+    .btn-lookup:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── MACROS BAR ────────────────────────────────────────────── */
+    .macros-bar {
+      display: flex; gap: .5rem; flex-wrap: wrap;
+      padding: .6rem .75rem;
+      background: rgba(125,249,255,.05);
+      border: 1px solid rgba(125,249,255,.15);
+      border-radius: var(--r-sm);
+      margin-bottom: .6rem;
+      animation: slideIn .2s ease;
+    }
+    .macro-chip {
+      display: flex; align-items: baseline; gap: .25rem;
+      font-size: .75rem;
+    }
+    .macro-val { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--ice); }
+    .macro-lbl { color: var(--text-3); font-size: .68rem; }
+
+    /* ── EXERCISE INFO CARD ────────────────────────────────────── */
+    .ex-info-card {
+      padding: .55rem .75rem;
+      background: var(--lime-dim);
+      border: 1px solid var(--border-act);
+      border-radius: var(--r-sm);
+      margin-bottom: .75rem;
+      animation: slideIn .2s ease;
+    }
+    .ex-info-row { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .ex-info-chip {
+      display: inline-flex; align-items: center;
+      font-size: .7rem; font-weight: 700;
+      padding: .2rem .55rem;
+      border-radius: 50px;
+      background: rgba(181,255,77,.15);
+      color: var(--lime);
+      text-transform: capitalize;
+      letter-spacing: .03em;
+    }
+    .ex-info-chip[style*="none"] { display: none !important; }
+
+    /* ── INGREDIENT WRAP (relative for dropdown) ───────────────── */
+    .ingredient-input-wrap { position: relative; flex: 1; }
+    .ingredient-input-wrap .ac-dropdown { top: calc(100% + 2px); }
+
     /* ── SYNC LOCKED BANNER ────────────────────────────────────── */
     .sync-locked-banner {
       display: flex; gap: 0.85rem; align-items: flex-start;
@@ -846,11 +928,23 @@
     <div class="form-card">
       <div class="form-title">➕ Registrar Comida</div>
 
-      <div class="form-grid-2" style="margin-bottom:.85rem;">
-        <div class="form-group" style="margin-bottom:0">
-          <label>Nombre del plato</label>
-          <input type="text" id="foodName" placeholder="Ej: Hamburguesa" />
+      <!-- Row: dish name + recipe lookup + meal -->
+      <div class="form-group" style="margin-bottom:.6rem">
+        <label>Nombre del plato</label>
+        <div class="input-action-row">
+          <input type="text" id="foodName" placeholder="Ej: Hamburguesa, Tacos, Ensalada César"
+            oninput="onFoodNameInput(event)" autocomplete="off" />
+          <button class="btn-lookup" id="btnRecipeLookup" onclick="lookupRecipe()"
+            title="Buscar receta y auto-llenar ingredientes">
+            <span id="recipeLookupIcon">📖</span>
+          </button>
         </div>
+        <div class="field-hint">Escribe el plato y toca 📖 para buscar su receta e ingredientes</div>
+        <!-- Recipe suggestions dropdown -->
+        <div class="ac-dropdown" id="recipeSuggestions" style="display:none"></div>
+      </div>
+
+      <div class="form-grid-2" style="margin-bottom:.85rem;">
         <div class="form-group" style="margin-bottom:0">
           <label>Momento</label>
           <select id="foodMeal">
@@ -860,29 +954,36 @@
             <option value="Merienda">🍎 Merienda</option>
           </select>
         </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Porciones</label>
+          <input type="number" id="foodPortions" value="1" min="0.25" step="0.25"
+            oninput="onPortionsChange()" />
+        </div>
       </div>
 
-      <!-- Ingredient list -->
+      <!-- Ingredient list with per-row autocomplete -->
       <div class="ingredients-header">
         <span class="ingredients-label">Ingredientes</span>
-        <span class="ingredients-hint">Cantidad + alimento</span>
+        <span class="ingredients-hint">Escribe para buscar · selecciona para agregar kcal</span>
       </div>
       <div id="ingredientRows"></div>
       <button class="btn-add-ingredient" onclick="addIngredientRow()">
         + Agregar ingrediente
       </button>
 
-      <!-- Estimate button -->
-      <button class="btn-estimate" id="btnEstimateFood" onclick="estimateFoodCalories()">
-        <span class="btn-estimate-icon">✦</span>
-        <span id="btnEstimateFoodLabel">Calcular calorías</span>
-      </button>
+      <!-- Macros summary — shown after any item is resolved -->
+      <div id="macrosSummary" style="display:none" class="macros-bar">
+        <div class="macro-chip"><span class="macro-val" id="mProtein">0</span><span class="macro-lbl">g Prot</span></div>
+        <div class="macro-chip"><span class="macro-val" id="mCarbs">0</span><span class="macro-lbl">g Carbs</span></div>
+        <div class="macro-chip"><span class="macro-val" id="mFat">0</span><span class="macro-lbl">g Grasa</span></div>
+        <div class="macro-chip"><span class="macro-val" id="mFiber">0</span><span class="macro-lbl">g Fibra</span></div>
+      </div>
 
-      <!-- Per-ingredient breakdown — hidden until estimated -->
+      <!-- Total calories — live-updating as ingredients are resolved -->
       <div id="foodBreakdownWrap" style="display:none">
         <div class="breakdown-list" id="foodBreakdownList"></div>
         <div class="breakdown-total-row">
-          <span class="breakdown-total-label">Total estimado</span>
+          <span class="breakdown-total-label">Total</span>
           <div class="calorie-result-row" style="margin-bottom:0">
             <input type="number" id="foodCalories" class="calorie-result-input"
               min="0" placeholder="0" oninput="markFoodManual()" />
@@ -890,8 +991,8 @@
           </div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.4rem">
-          <span class="calorie-result-badge" id="foodCalBadge">Nutritionix</span>
-          <span class="calorie-result-hint">Edita el total si quieres corregirlo</span>
+          <span class="calorie-result-badge" id="foodCalBadge">API Ninjas</span>
+          <span class="calorie-result-hint">Edita el total para corregir</span>
         </div>
       </div>
 
@@ -912,11 +1013,23 @@
     <div class="form-card">
       <div class="form-title">🏃 Registrar Ejercicio</div>
 
-      <div class="form-group">
+      <div class="form-group" style="position:relative">
         <label>Tipo de actividad</label>
         <input type="text" id="exName"
-          placeholder="Ej: Correr, Pesas, Natación, HIIT, Ciclismo"
-          oninput="resetExCalc()" />
+          placeholder="Ej: running, push ups, cycling, yoga..."
+          oninput="onExNameInput(event)" onchange="resetExCalc()" autocomplete="off" />
+        <div class="field-hint">Escribe en inglés o español — autocompletará con ejercicios reales</div>
+        <div class="ac-dropdown" id="exSuggestions" style="display:none"></div>
+      </div>
+
+      <!-- Exercise info card — shown when an exercise is selected from API -->
+      <div id="exInfoCard" style="display:none" class="ex-info-card">
+        <div class="ex-info-row">
+          <span class="ex-info-chip" id="exInfoType"></span>
+          <span class="ex-info-chip" id="exInfoMuscle"></span>
+          <span class="ex-info-chip" id="exInfoDifficulty"></span>
+          <span class="ex-info-chip" id="exInfoEquip"></span>
+        </div>
       </div>
 
       <div class="form-grid-2">
@@ -936,24 +1049,21 @@
       </div>
 
       <div class="form-group">
-        <label>Descripción adicional <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+        <label>Notas <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
         <input type="text" id="exNotes"
-          placeholder="Ej: 5km, 3 series de 10, nivel 8 en elíptica..."
+          placeholder="Ej: 5km, 3 series × 10 reps, nivel 8..."
           oninput="resetExCalc()" />
-        <div class="field-hint">Más detalle = estimación más precisa</div>
       </div>
 
-      <!-- AI Estimate button -->
       <button class="btn-estimate" id="btnEstimateEx" onclick="estimateExCalories()">
         <span class="btn-estimate-icon">✦</span>
-        <span id="btnEstimateExLabel">Estimar calorías quemadas</span>
+        <span id="btnEstimateExLabel">Calcular calorías quemadas</span>
       </button>
 
-      <!-- Calorie result — hidden until estimated -->
       <div class="calorie-result" id="exCalResult" style="display:none">
         <div class="calorie-result-header">
-          <span class="calorie-result-label">Calorías quemadas estimadas</span>
-          <span class="calorie-result-badge" id="exCalBadge">IA</span>
+          <span class="calorie-result-label">Calorías quemadas</span>
+          <span class="calorie-result-badge" id="exCalBadge">API Ninjas</span>
         </div>
         <div class="calorie-result-row">
           <input type="number" id="exCalories" class="calorie-result-input" min="0"
@@ -961,7 +1071,7 @@
           <span class="calorie-result-unit">kcal</span>
         </div>
         <div class="calorie-result-reasoning" id="exCalReasoning"></div>
-        <div class="calorie-result-hint">Puedes editar si quieres corregir la estimación</div>
+        <div class="calorie-result-hint">Edita para corregir</div>
       </div>
 
       <button class="btn-primary" id="btnSaveEx" onclick="submitExercise()" disabled>
@@ -1085,15 +1195,13 @@
 /* ── CONFIGURATION ──────────────────────────────────────────── */
 // Tokens replaced at build-time by GitHub Actions — never committed to git.
 const _BAKED_URL    = '__APPS_SCRIPT_URL__';
-const _NUTRIX_ID    = '__NUTRITIONIX_APP_ID__';
-const _NUTRIX_KEY   = '__NUTRITIONIX_APP_KEY__';
+const _AN_KEY       = '__API_NINJAS_KEY__';
 const _IS_CI        = !_BAKED_URL.startsWith('__');
-const _HAS_NUTRIX   = !_NUTRIX_ID.startsWith('__');
+const _HAS_AN       = !_AN_KEY.startsWith('__');
 
 const CONFIG = {
-  scriptUrl:       _IS_CI      ? _BAKED_URL  : (localStorage.getItem('vita_scriptUrl') || ''),
-  nutritionixId:   _HAS_NUTRIX ? _NUTRIX_ID  : (localStorage.getItem('vita_nxId')  || ''),
-  nutritionixKey:  _HAS_NUTRIX ? _NUTRIX_KEY : (localStorage.getItem('vita_nxKey') || ''),
+  scriptUrl:       _IS_CI   ? _BAKED_URL : (localStorage.getItem('vita_scriptUrl') || ''),
+  apiNinjasKey:    _HAS_AN  ? _AN_KEY    : (localStorage.getItem('vita_anKey') || ''),
   isPreconfigured: _IS_CI,
   timeout:         8000
 };
@@ -1329,55 +1437,205 @@ function switchTab(tab) {
 }
 
 /* ── CLAUDE API HELPER ───────────────────────────────────────── */
-/* ── NUTRITIONIX API HELPERS ─────────────────────────────────── */
-// Nutritionix is CORS-enabled and designed for browser-side calls.
-// Free tier: 500 req/day · https://developer.nutritionix.com
-// Keys are injected at build-time from GitHub Secrets — never in git.
+/* ── API NINJAS HELPERS ─────────────────────────────────────── */
+// API Ninjas: https://api-ninjas.com — single key, CORS enabled.
+// Token injected at build-time from GitHub Secrets (API_NINJAS_KEY).
+// Same X-Api-Key header used for all four endpoints.
 
-function getNxHeaders() {
-  return {
-    'Content-Type':  'application/json',
-    'x-app-id':      CONFIG.nutritionixId,
-    'x-app-key':     CONFIG.nutritionixKey,
-    'x-remote-user-id': '0'   // required by Nutritionix, any value works for public data
-  };
+const AN_BASE = 'https://api.api-ninjas.com/v1';
+
+function hasApiKey() { return !!CONFIG.apiNinjasKey; }
+
+async function anFetch(path) {
+  const res = await fetch(AN_BASE + path, {
+    headers: { 'X-Api-Key': CONFIG.apiNinjasKey }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
 }
 
-function hasNxKeys() {
-  return CONFIG.nutritionixId && CONFIG.nutritionixKey;
+/* ── DEBOUNCE UTIL ───────────────────────────────────────────── */
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+/* ── AUTOCOMPLETE DROPDOWN ───────────────────────────────────── */
+function showDropdown(dropdownId, items, onSelect) {
+  const el = document.getElementById(dropdownId);
+  if (!el) return;
+  if (!items.length) { el.style.display = 'none'; return; }
+  el.innerHTML = items.map((item, i) =>
+    `<div class="ac-item" data-idx="${i}">${item.label}</div>`
+  ).join('');
+  el.style.display = 'block';
+  el.querySelectorAll('.ac-item').forEach((row, i) => {
+    row.addEventListener('mousedown', (e) => {
+      e.preventDefault();  // prevent blur before click
+      onSelect(items[i]);
+      el.style.display = 'none';
+    });
+  });
+}
+
+function hideDropdown(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FOOD — RECIPE LOOKUP + INGREDIENT AUTOCOMPLETE
+═══════════════════════════════════════════════════════════════ */
+
+/* ── RECIPE LOOKUP via /recipe ───────────────────────────────── */
+async function lookupRecipe() {
+  const name = document.getElementById('foodName').value.trim();
+  if (!name) { showToast('Escribe el nombre del plato primero', 'error'); return; }
+  if (!hasApiKey()) { showToast('Configura tu API Ninjas key en ⚙ Configuración', 'error'); return; }
+
+  const btn  = document.getElementById('btnRecipeLookup');
+  const icon = document.getElementById('recipeLookupIcon');
+  btn.disabled = true;
+  icon.textContent = '⏳';
+
+  try {
+    const data    = await anFetch(`/recipe?query=${encodeURIComponent(name)}`);
+    const recipes = data.slice ? data : [];
+
+    if (!recipes.length) {
+      showToast('No se encontró receta — agrega ingredientes manualmente', 'error');
+      icon.textContent = '📖'; btn.disabled = false;
+      return;
+    }
+
+    if (recipes.length === 1) {
+      applyRecipe(recipes[0]);
+    } else {
+      // Show up to 4 recipe options to pick from
+      showDropdown('recipeSuggestions',
+        recipes.slice(0, 4).map(r => ({ label: `📖 ${r.title}`, data: r })),
+        (item) => applyRecipe(item.data)
+      );
+    }
+  } catch (err) {
+    showToast('Error buscando receta: ' + err.message, 'error');
+  }
+  icon.textContent = '📖'; btn.disabled = false;
+}
+
+function applyRecipe(recipe) {
+  if (!recipe) return;
+  // Set dish name from recipe title
+  document.getElementById('foodName').value = recipe.title || '';
+  document.getElementById('recipeSuggestions').style.display = 'none';
+
+  // Parse ingredients from recipe.ingredients string
+  // API Ninjas returns a pipe-separated or newline list like "2 cups flour|1 egg|..."
+  const raw = recipe.ingredients || '';
+  const lines = raw
+    .split(/[|
+]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    showToast('Receta encontrada pero sin lista de ingredientes — agrégalos manualmente', 'loading');
+    return;
+  }
+
+  // Clear existing rows and populate with recipe ingredients
+  document.getElementById('ingredientRows').innerHTML = '';
+  _ingredientIdCounter = 0;
+  lines.slice(0, 12).forEach(line => addIngredientRow(line, true));
+
+  showToast(`Receta "${recipe.title}" cargada con ${lines.length} ingredientes`, 'success');
+  resetFoodCalc();
+  // Auto-trigger nutrition lookup for all filled rows
+  setTimeout(() => estimateFoodCalories(), 300);
 }
 
 /* ── INGREDIENT ROWS ─────────────────────────────────────────── */
-let _ingredientIdCounter = 0;
+let _ingredientIdCounter  = 0;
+// Store resolved nutrition data per row id
+const _rowNutrition = {};
 
 function addIngredientRow(defaultText, skipFocus) {
   const id   = ++_ingredientIdCounter;
   const wrap = document.getElementById('ingredientRows');
-  if (!wrap) return;   // guard: tab may not be rendered yet
+  if (!wrap) return;
   const row  = document.createElement('div');
   row.className = 'ingredient-row';
   row.id = `irow-${id}`;
   row.innerHTML = `
-    <input type="text" class="ingredient-input" id="ing-${id}"
-      placeholder="Ej: 2 panes blancos"
-      value="${escHtml(defaultText || '')}"
-      oninput="resetFoodCalc()" />
+    <div class="ingredient-input-wrap" style="flex:1;position:relative">
+      <input type="text" class="ingredient-input" id="ing-${id}"
+        placeholder="Ej: 2 panes blancos, 100g carne de res..."
+        value="${escHtml(defaultText || '')}"
+        autocomplete="off"
+        oninput="onIngredientInput(event, ${id})"
+        onblur="hideDropdown('ing-ac-${id}')" />
+      <div class="ac-dropdown" id="ing-ac-${id}" style="display:none"></div>
+    </div>
     <span class="ingredient-cal-badge" id="ing-cal-${id}" style="display:none"></span>
     <button class="ingredient-remove" onclick="removeIngredientRow(${id})" title="Quitar">✕</button>`;
   wrap.appendChild(row);
-  // Only focus when the user explicitly adds a row (not during page init)
   if (!skipFocus) {
-    const input = document.getElementById(`ing-${id}`);
-    if (input) input.focus();
+    const inp = document.getElementById(`ing-${id}`);
+    if (inp) inp.focus();
   }
   resetFoodCalc();
+}
+
+// Debounced nutrition search per row
+const _ingSearchDebounced = {};
+function onIngredientInput(e, rowId) {
+  resetFoodCalc();
+  if (!hasApiKey()) return;
+  if (!_ingSearchDebounced[rowId]) {
+    _ingSearchDebounced[rowId] = debounce((id, q) => searchIngredient(id, q), 420);
+  }
+  _ingSearchDebounced[rowId](rowId, e.target.value.trim());
+}
+
+async function searchIngredient(rowId, query) {
+  if (query.length < 2) { hideDropdown(`ing-ac-${rowId}`); return; }
+  try {
+    const items = await anFetch(`/nutrition?query=${encodeURIComponent(query)}`);
+    if (!items.length) { hideDropdown(`ing-ac-${rowId}`); return; }
+    showDropdown(`ing-ac-${rowId}`,
+      items.slice(0, 5).map(f => ({
+        label: `${f.name} — <strong>${Math.round(f.calories)} kcal</strong> / ${f.serving_size_g}g`,
+        data: f
+      })),
+      (item) => selectIngredient(rowId, item.data)
+    );
+  } catch (_) { /* silent */ }
+}
+
+function selectIngredient(rowId, food) {
+  const inp = document.getElementById(`ing-${rowId}`);
+  if (inp) inp.value = food.name;
+  _rowNutrition[rowId] = food;
+  setBadge(rowId, Math.round(food.calories));
+  updateTotalsFromResolved();
+}
+
+function setBadge(rowId, kcal) {
+  const b = document.getElementById(`ing-cal-${rowId}`);
+  if (!b) return;
+  b.textContent = `${kcal} kcal`;
+  b.style.display = 'inline-flex';
 }
 
 function removeIngredientRow(id) {
   const row = document.getElementById(`irow-${id}`);
   if (row) row.remove();
-  // Keep at least one row
+  delete _rowNutrition[id];
   if (!document.getElementById('ingredientRows').children.length) addIngredientRow('', true);
+  updateTotalsFromResolved();
   resetFoodCalc();
 }
 
@@ -1387,15 +1645,59 @@ function getIngredientLines() {
     .filter(Boolean);
 }
 
-/* ── FOOD ESTIMATION — Nutritionix /natural/nutrients ────────── */
-// Nutritionix accepts a single query with multiple items separated by newlines.
-// Each line is parsed independently and returned as a separate item in foods[].
-async function estimateFoodCalories() {
-  const lines = getIngredientLines();
-  if (!lines.length) {
-    showToast('Agrega al menos un ingrediente', 'error');
+/* ── LIVE TOTAL FROM ALREADY-RESOLVED ROWS ───────────────────── */
+function updateTotalsFromResolved() {
+  const resolved = Object.values(_rowNutrition);
+  if (!resolved.length) {
+    const macros = document.getElementById('macrosSummary');
+    if (macros) macros.style.display = 'none';
     return;
   }
+  const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
+  const total = resolved.reduce((s,f) => ({
+    calories:          s.calories          + (f.calories          || 0),
+    protein_g:         s.protein_g         + (f.protein_g         || 0),
+    carbohydrates_total_g: s.carbohydrates_total_g + (f.carbohydrates_total_g || 0),
+    fat_total_g:       s.fat_total_g       + (f.fat_total_g       || 0),
+    fiber_g:           s.fiber_g           + (f.fiber_g           || 0),
+  }), {calories:0, protein_g:0, carbohydrates_total_g:0, fat_total_g:0, fiber_g:0});
+
+  const p = portions;
+  document.getElementById('mProtein').textContent = Math.round(total.protein_g * p);
+  document.getElementById('mCarbs').textContent   = Math.round(total.carbohydrates_total_g * p);
+  document.getElementById('mFat').textContent     = Math.round(total.fat_total_g * p);
+  document.getElementById('mFiber').textContent   = Math.round(total.fiber_g * p);
+  const macros = document.getElementById('macrosSummary');
+  if (macros) macros.style.display = 'flex';
+}
+
+function onPortionsChange() {
+  updateTotalsFromResolved();
+  resetFoodCalc();
+}
+
+/* ── FOOD NAME AUTOCOMPLETE (recipe suggestions) ─────────────── */
+const _foodNameDebounced = debounce(async (q) => {
+  if (!hasApiKey() || q.length < 2) { hideDropdown('recipeSuggestions'); return; }
+  try {
+    const data = await anFetch(`/recipe?query=${encodeURIComponent(q)}`);
+    const recipes = (data.slice ? data : []).slice(0, 4);
+    if (!recipes.length) { hideDropdown('recipeSuggestions'); return; }
+    showDropdown('recipeSuggestions',
+      recipes.map(r => ({ label: `📖 ${r.title}`, data: r })),
+      (item) => { document.getElementById('foodName').value = item.data.title; hideDropdown('recipeSuggestions'); }
+    );
+  } catch (_) { hideDropdown('recipeSuggestions'); }
+}, 500);
+
+function onFoodNameInput(e) {
+  _foodNameDebounced(e.target.value.trim());
+}
+
+/* ── FULL NUTRITION FETCH for all ingredients ────────────────── */
+async function estimateFoodCalories() {
+  const lines = getIngredientLines();
+  if (!lines.length) { showToast('Agrega al menos un ingrediente', 'error'); return; }
 
   const btn   = document.getElementById('btnEstimateFood');
   const label = document.getElementById('btnEstimateFoodLabel');
@@ -1403,65 +1705,68 @@ async function estimateFoodCalories() {
   btn.disabled = true;
   label.textContent = 'Consultando base de datos…';
 
-  // Clear per-ingredient badges while loading
   document.querySelectorAll('.ingredient-cal-badge').forEach(b => {
     b.style.display = 'none'; b.textContent = '';
   });
 
-  if (hasNxKeys()) {
-    try {
-      // Send ALL ingredients in ONE request — Nutritionix parses each line separately
-      const query = lines.join('
-');
-      const res   = await fetch('https://trackapi.nutritionix.com/v2/natural/nutrients', {
-        method:  'POST',
-        headers: getNxHeaders(),
-        body:    JSON.stringify({ query })
-      });
+  const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
 
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.message || `HTTP ${res.status}`);
-      }
+  if (hasApiKey()) {
+    // Fetch each ingredient individually for accurate per-item results
+    const results = await Promise.allSettled(
+      lines.map((line, i) =>
+        anFetch(`/nutrition?query=${encodeURIComponent(line)}`)
+          .then(items => ({ line, items: items || [], idx: i }))
+      )
+    );
 
-      const data  = await res.json();
-      const foods = data.foods || [];
-      if (!foods.length) throw new Error('Sin resultados');
+    const allFoods  = [];
+    const breakdown = [];
+    const inputEls  = [...document.querySelectorAll('.ingredient-input')];
 
-      // Match returned items back to input rows (best-effort by order)
-      const inputEls = [...document.querySelectorAll('.ingredient-input')];
-      foods.forEach((food, i) => {
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled' && r.value.items.length) {
+        const foods = r.value.items;
+        const cal   = Math.round(foods.reduce((s, f) => s + (f.calories || 0), 0));
+        allFoods.push(...foods);
+
+        // Update row badge
         const el = inputEls[i];
-        if (!el) return;
-        const rowId = el.id.replace('ing-', '');
-        const badge = document.getElementById(`ing-cal-${rowId}`);
-        if (badge) {
-          badge.textContent = `${Math.round(food.nf_calories)} kcal`;
-          badge.style.display = 'inline-flex';
+        if (el) {
+          const rowId = el.id.replace('ing-', '');
+          setBadge(rowId, cal);
+          // Cache for macros
+          if (foods.length) _rowNutrition[rowId] = foods.reduce((acc, f) => ({
+            calories:              acc.calories              + (f.calories || 0),
+            protein_g:             acc.protein_g             + (f.protein_g || 0),
+            carbohydrates_total_g: acc.carbohydrates_total_g + (f.carbohydrates_total_g || 0),
+            fat_total_g:           acc.fat_total_g           + (f.fat_total_g || 0),
+            fiber_g:               acc.fiber_g               + (f.fiber_g || 0),
+          }), {calories:0,protein_g:0,carbohydrates_total_g:0,fat_total_g:0,fiber_g:0});
         }
-      });
 
-      const totalCal  = Math.round(foods.reduce((s, f) => s + (f.nf_calories || 0), 0));
-      const breakdown = foods.map(f =>
-        `${f.food_name} — ${Math.round(f.nf_calories)} kcal`
-      );
+        const detail = foods.map(f => `${f.name} ${Math.round(f.calories)}kcal`).join(' + ');
+        breakdown.push(`${r.value.line} — ${cal} kcal  (${detail})`);
+      } else {
+        // Fallback for this line
+        const fb = roughFoodEstimateLines([lines[i]]);
+        breakdown.push(fb.breakdown[0]);
+        const cal = fb.total;
+        const el  = inputEls[i];
+        if (el) setBadge(el.id.replace('ing-', ''), cal);
+        allFoods.push({ calories: cal });
+      }
+    });
 
-      showFoodResult(totalCal, breakdown, 'Nutritionix');
-      label.textContent = '✓ Calculado · modifica ingredientes y recalcula si es necesario';
-
-    } catch (err) {
-      console.warn('Nutritionix food error:', err.message);
-      // Fallback: estimate each line individually with heuristic
-      const result = roughFoodEstimateLines(lines);
-      showFoodResult(result.total, result.breakdown, 'Estimado');
-      label.textContent = `✓ Estimado (fallback: ${err.message})`;
-    }
+    const totalCal = Math.round(allFoods.reduce((s, f) => s + (f.calories || 0), 0) * portions);
+    showFoodResult(totalCal, breakdown, 'API Ninjas');
+    updateTotalsFromResolved();
+    label.textContent = '✓ Calculado · modifica y recalcula si es necesario';
 
   } else {
-    // No API keys — heuristic per line
     const result = roughFoodEstimateLines(lines);
-    showFoodResult(result.total, result.breakdown, 'Estimado');
-    label.textContent = '✓ Estimado (sin API keys — configura Nutritionix para mayor precisión)';
+    showFoodResult(Math.round(result.total * portions), result.breakdown, 'Estimado');
+    label.textContent = '✓ Estimado (sin API key)';
   }
 
   btn.classList.remove('loading');
@@ -1469,9 +1774,8 @@ async function estimateFoodCalories() {
 }
 
 function showFoodResult(totalCal, breakdownArr, source) {
-  // Render per-ingredient breakdown list
   const listEl = document.getElementById('foodBreakdownList');
-  listEl.innerHTML = breakdownArr.map(line => `
+  if (listEl) listEl.innerHTML = breakdownArr.map(line => `
     <div class="breakdown-item">
       <span class="breakdown-item-name">${escHtml(line.split(' — ')[0])}</span>
       <span class="breakdown-item-cal">${escHtml(line.split(' — ')[1] || '')}</span>
@@ -1496,41 +1800,40 @@ function resetFoodCalc() {
   const wrap  = document.getElementById('foodBreakdownWrap');
   const save  = document.getElementById('btnSaveFood');
   const label = document.getElementById('btnEstimateFoodLabel');
-  if (wrap)  wrap.style.display  = 'none';
-  if (save)  save.disabled       = true;
-  if (label) label.textContent   = 'Calcular calorías';
+  if (wrap)  wrap.style.display = 'none';
+  if (save)  save.disabled      = true;
+  if (label) label.textContent  = 'Calcular calorías';
   document.querySelectorAll('.ingredient-cal-badge').forEach(b => {
     b.style.display = 'none'; b.textContent = '';
   });
 }
 
-// Heuristic fallback — runs per line when Nutritionix unavailable
+// Heuristic fallback — per line, when no API key
 const FOOD_PATTERNS = [
   [/(lechuga|espinaca|verdura|vegetal|pepino|apio|brócoli|brocoli|zanahoria|tomate|jitomate)/i, 20,  'Verdura'],
   [/(pollo|chicken|pechuga|turkey|pavo)/i,               165, 'Pollo'],
   [/(carne|beef|res|bistec|steak|hamburguesa|burger)/i,  250, 'Carne de res'],
   [/(cerdo|pork|tocino|bacon|jamón|jamon|salchicha)/i,   280, 'Cerdo/embutido'],
   [/(salmón|salmon|atún|atun|pescado|tilapia|camarón)/i, 150, 'Mariscos/pescado'],
-  [/(arroz|rice)/i,                                      130, 'Arroz cocido (taza)'],
-  [/(pasta|fideos|espagueti|macarrón)/i,                 220, 'Pasta cocida (taza)'],
-  [/(pan|bread|baguette|bolillo|tortilla)/i,             130, 'Pan/tortilla (pieza)'],
-  [/(huevo|egg)/i,                                        78, 'Huevo (pieza)'],
-  [/(leche|milk)/i,                                      120, 'Leche (taza)'],
-  [/(yogur|yogurt)/i,                                    100, 'Yogurt (taza)'],
-  [/(queso|cheese)/i,                                    113, 'Queso (rebanada)'],
-  [/(aguacate|avocado)/i,                                160, 'Aguacate (mitad)'],
-  [/(frijol|bean|lenteja|garbanzo)/i,                    225, 'Legumbre cocida (taza)'],
-  [/(fruta|manzana|plátano|platano|banana|naranja|pera)/i, 80,'Fruta (pieza)'],
-  [/(aceite|oil|mantequilla|butter|mayonesa|mayo)/i,     120, 'Grasa (cucharada)'],
+  [/(arroz|rice)/i,                                      130, 'Arroz cocido'],
+  [/(pasta|fideos|espagueti|macarrón)/i,                 220, 'Pasta cocida'],
+  [/(pan|bread|baguette|bolillo|tortilla)/i,             130, 'Pan/tortilla'],
+  [/(huevo|egg)/i,                                        78, 'Huevo'],
+  [/(leche|milk)/i,                                      120, 'Leche'],
+  [/(yogur|yogurt)/i,                                    100, 'Yogurt'],
+  [/(queso|cheese)/i,                                    113, 'Queso'],
+  [/(aguacate|avocado)/i,                                160, 'Aguacate'],
+  [/(frijol|bean|lenteja|garbanzo)/i,                    225, 'Legumbre'],
+  [/(fruta|manzana|plátano|platano|banana|naranja|pera)/i, 80,'Fruta'],
+  [/(aceite|oil|mantequilla|butter|mayonesa|mayo)/i,     120, 'Grasa'],
   [/(aderezo|dressing|salsa)/i,                           60, 'Condimento'],
-  [/(refresco|soda|jugo|juice)/i,                        150, 'Bebida azucarada (vaso)'],
+  [/(refresco|soda|jugo|juice)/i,                        150, 'Bebida azucarada'],
 ];
 
 function roughFoodEstimateLines(lines) {
   let total = 0;
   const breakdown = [];
   for (const line of lines) {
-    // Extract numeric quantity from the beginning if present ("2 panes")
     const qty   = parseFloat(line) || 1;
     let   match = null;
     for (const [re, base, label] of FOOD_PATTERNS) {
@@ -1540,15 +1843,9 @@ function roughFoodEstimateLines(lines) {
     const lbl = match ? match.label : 'Alimento genérico';
     total += cal;
     breakdown.push(`${line} — ${cal} kcal (${lbl})`);
-
-    // Also set per-ingredient badge
     const inputEls = [...document.querySelectorAll('.ingredient-input')];
     const idx = inputEls.findIndex(el => el.value.trim() === line);
-    if (idx >= 0) {
-      const rowId = inputEls[idx].id.replace('ing-', '');
-      const badge = document.getElementById(`ing-cal-${rowId}`);
-      if (badge) { badge.textContent = `${cal} kcal`; badge.style.display = 'inline-flex'; }
-    }
+    if (idx >= 0) setBadge(inputEls[idx].id.replace('ing-', ''), cal);
   }
   return { total, breakdown };
 }
@@ -1557,47 +1854,94 @@ function roughFoodEstimateLines(lines) {
 async function submitFood() {
   const lines = getIngredientLines();
   const cals  = parseFloat(document.getElementById('foodCalories').value);
-  const name  = document.getElementById('foodName').value.trim()
-                || lines.slice(0,2).join(', ');
+  const name  = document.getElementById('foodName').value.trim() || lines.slice(0,2).join(', ');
 
   if (!lines.length) { showToast('Agrega al menos un ingrediente', 'error'); return; }
   if (isNaN(cals) || cals < 0) { showToast('Estimación de calorías inválida', 'error'); return; }
 
+  const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
   const entry = {
-    id:           Date.now().toString(),
-    date:         state.today,
+    id:            Date.now().toString(),
+    date:          state.today,
     name,
-    ingredients:  lines.join(', '),
-    calories:     cals,
-    portions:     1,
-    meal:         document.getElementById('foodMeal').value,
+    ingredients:   lines.join(', '),
+    calories:      cals,
+    portions,
+    meal:          document.getElementById('foodMeal').value,
     totalCalories: cals,
-    aiEstimated:  document.getElementById('foodCalBadge').textContent !== 'Manual'
+    apiEstimated:  document.getElementById('foodCalBadge').textContent !== 'Manual'
   };
 
   state.foods[state.profile].push(entry);
   saveEntriesToStorage(state.profile);
   if (CONFIG.scriptUrl) await pushEntry('food', state.profile, entry);
 
-  // Reset form
+  // Reset
   document.getElementById('foodName').value = '';
   document.getElementById('ingredientRows').innerHTML = '';
   _ingredientIdCounter = 0;
-  addIngredientRow('', true);   // restore one empty row, no focus steal
-  document.getElementById('foodBreakdownWrap').style.display = 'none';
-  document.getElementById('btnSaveFood').disabled = true;
-  document.getElementById('btnEstimateFoodLabel').textContent = 'Calcular calorías';
+  Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
+  addIngredientRow('', true);
+  resetFoodCalc();
+  const macros = document.getElementById('macrosSummary');
+  if (macros) macros.style.display = 'none';
+  document.getElementById('foodPortions').value = '1';
 
   renderAll();
   showToast('Comida registrada ✓', 'success');
 }
 
-/* ── EXERCISE ESTIMATION — Nutritionix /natural/exercise ─────── */
-// Nutritionix exercise endpoint is personalised: uses age, weight, height, sex.
-// MET table fallback when no API keys.
+/* ═══════════════════════════════════════════════════════════════
+   EXERCISE — AUTOCOMPLETE + CALORIES BURNED
+═══════════════════════════════════════════════════════════════ */
 
+/* ── EXERCISE AUTOCOMPLETE via /exercises ────────────────────── */
+const _exNameDebounced = debounce(async (q) => {
+  if (!hasApiKey() || q.length < 2) { hideDropdown('exSuggestions'); return; }
+  try {
+    const items = await anFetch(`/exercises?name=${encodeURIComponent(q)}&limit=6`);
+    if (!items.length) { hideDropdown('exSuggestions'); return; }
+    showDropdown('exSuggestions',
+      items.map(ex => ({
+        label: `💪 ${ex.name} <small style="color:var(--text-3)">${ex.type} · ${ex.muscle}</small>`,
+        data: ex
+      })),
+      (item) => selectExercise(item.data)
+    );
+  } catch (_) { hideDropdown('exSuggestions'); }
+}, 420);
+
+function onExNameInput(e) {
+  resetExCalc();
+  _exNameDebounced(e.target.value.trim());
+}
+
+function selectExercise(ex) {
+  document.getElementById('exName').value = ex.name;
+  hideDropdown('exSuggestions');
+
+  // Show info card
+  const card = document.getElementById('exInfoCard');
+  card.style.display = 'block';
+  const setChip = (id, val, prefix) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (val) { el.textContent = (prefix || '') + val; el.style.display = 'inline-flex'; }
+    else el.style.display = 'none';
+  };
+  setChip('exInfoType',       ex.type,        '🏷 ');
+  setChip('exInfoMuscle',     ex.muscle,      '💪 ');
+  setChip('exInfoDifficulty', ex.difficulty,  '⚡ ');
+  setChip('exInfoEquip',      ex.equipment,   '🔧 ');
+
+  // Map difficulty to intensity
+  const diffMap = { beginner: 'Baja', intermediate: 'Media', expert: 'Alta' };
+  const mapped  = diffMap[ex.difficulty?.toLowerCase()];
+  if (mapped) document.getElementById('exIntensity').value = mapped;
+}
+
+/* ── EXERCISE CALORIES via /caloriesburned ───────────────────── */
 const MET_TABLE = [
-  // [regex, baja, media, alta, label]
   [/(corr|run|jog|trotar)/,                      6.0,  9.0, 13.0, 'Correr'],
   [/(caminat|caminar|walk)/,                     2.5,  3.5,  4.5, 'Caminar'],
   [/(biciclet|ciclism|cycling|bike)/,            4.0,  7.0, 10.0, 'Ciclismo'],
@@ -1605,7 +1949,7 @@ const MET_TABLE = [
   [/(pesas|weights|gym|musculac|fuerza|lift)/,   3.0,  5.0,  6.0, 'Pesas/gym'],
   [/(hiit|interval|tabata|crossfit)/,            7.0,  9.0, 12.0, 'HIIT/CrossFit'],
   [/(yoga|pilates|stretching|estiramiento)/,     2.0,  3.0,  4.0, 'Yoga/Pilates'],
-  [/(fútbol|soccer|futbol|basketball|tenis)/,    7.0,  9.0, 11.0, 'Deporte de equipo'],
+  [/(fútbol|soccer|futbol|basketball|tenis)/,    7.0,  9.0, 11.0, 'Deporte equipo'],
   [/(elíptica|elliptical|escaladora|stair)/,     4.0,  6.5,  9.0, 'Cardio máquina'],
   [/(bailar|baile|dance|zumba)/,                 4.5,  6.0,  8.0, 'Baile/Zumba'],
   [/(boxeo|boxing|kickboxing|artes marciales)/,  7.0,  9.5, 12.0, 'Artes marciales'],
@@ -1617,11 +1961,9 @@ function getMET(name, notes, intensity) {
   const text = (name + ' ' + notes).toLowerCase();
   for (const [re, low, med, high, label] of MET_TABLE) {
     if (re.test(text)) {
-      const idx = INTENSITY_IDX[intensity] ?? 1;
-      return { met: [low, med, high][idx], label };
+      return { met: [low, med, high][INTENSITY_IDX[intensity] ?? 1], label };
     }
   }
-  // Generic fallback: 4/6/9 for low/medium/high
   return { met: [4, 6, 9][INTENSITY_IDX[intensity] ?? 1], label: 'Actividad general' };
 }
 
@@ -1642,66 +1984,38 @@ async function estimateExCalories() {
 
   const prof   = state.profiles[state.profile];
   const weight = prof.weight || 70;
-  const height = prof.height || 170;
-  const age    = prof.age    || 30;
-  const sex    = prof.sex    || 'male';
+  const intensityMult = { 'Baja': 0.80, 'Media': 1.0, 'Alta': 1.25 };
 
-  // ── Nutritionix /natural/exercise ───────────────────────────
-  if (hasNxKeys()) {
+  if (hasApiKey()) {
     try {
-      // Build query: intensity modifier + exercise + duration
-      const intensityMap = { 'Baja': 'light', 'Media': 'moderate', 'Alta': 'vigorous' };
-      const query = `${intensityMap[intensity] || 'moderate'} ${name}${notes ? ' ' + notes : ''} for ${duration} minutes`;
+      const actQuery = `${name}${notes ? ' ' + notes : ''}`;
+      const items    = await anFetch(
+        `/caloriesburned?activity=${encodeURIComponent(actQuery)}&weight_kg=${weight}&duration_minutes=${duration}`
+      );
+      if (!items.length) throw new Error('Sin resultados');
 
-      const res = await fetch('https://trackapi.nutritionix.com/v2/natural/exercise', {
-        method:  'POST',
-        headers: getNxHeaders(),
-        body: JSON.stringify({
-          query,
-          weight_kg:  weight,
-          height_cm:  height,
-          age,
-          gender: sex === 'male' ? 'male' : 'female'
-        })
-      });
+      const base     = items[0].total_calories || 0;
+      const adjusted = Math.round(base * (intensityMult[intensity] || 1));
+      const reasoning = `${items[0].name}: ${base} kcal base × ${intensityMult[intensity] || 1} (${intensity}) = ${adjusted} kcal`;
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || `HTTP ${res.status}`);
-      }
-
-      const data      = await res.json();
-      const exercises = data.exercises || [];
-      if (!exercises.length) throw new Error('Sin resultados');
-
-      const totalBurned = Math.round(exercises.reduce((s, e) => s + (e.nf_calories || 0), 0));
-      const breakdown   = exercises
-        .map(e => `${e.name} (MET ${e.met?.toFixed(1) || '?'}) = ${Math.round(e.nf_calories)} kcal`)
-        .join(' · ');
-
-      showExResult(totalBurned, breakdown, 'Nutritionix');
-      label.textContent = '✓ Estimado · vuelve a estimar si cambias algo';
+      showExResult(adjusted, reasoning, 'API Ninjas');
+      label.textContent = '✓ Calculado · edita si deseas corregir';
 
     } catch (err) {
-      console.warn('Nutritionix exercise error:', err.message);
-      // Fallback to MET formula
       const { met, label: actLabel } = getMET(name, notes, intensity);
       const burned = Math.round(met * weight * (duration / 60));
       showExResult(burned,
         `MET ${met} (${actLabel}, ${intensity}) × ${weight}kg × ${duration}min = ${burned} kcal`,
         'MET');
-      label.textContent = '✓ Estimado (fórmula MET)';
+      label.textContent = `✓ Estimado por MET (API: ${err.message})`;
     }
-
-  // ── MET formula fallback (no API keys) ──────────────────────
   } else {
     const { met, label: actLabel } = getMET(name, notes, intensity);
-    // Calories = MET × weight(kg) × time(h)
     const burned = Math.round(met * weight * (duration / 60));
     showExResult(burned,
-      `MET ${met} (${actLabel}, ${intensity}) × ${weight}kg × ${duration/60}h = ${burned} kcal`,
+      `MET ${met} (${actLabel}, ${intensity}) × ${weight}kg × ${duration / 60}h = ${burned} kcal`,
       'MET');
-    label.textContent = '✓ Estimado (fórmula MET)';
+    label.textContent = '✓ Estimado por fórmula MET';
   }
 
   btn.classList.remove('loading');
@@ -1721,7 +2035,7 @@ function showExResult(calories, reasoning, source) {
 function resetExCalc() {
   document.getElementById('exCalResult').style.display = 'none';
   document.getElementById('btnSaveEx').disabled = true;
-  document.getElementById('btnEstimateExLabel').textContent = 'Estimar calorías quemadas';
+  document.getElementById('btnEstimateExLabel').textContent = 'Calcular calorías quemadas';
 }
 
 function markExManual() {
@@ -1968,7 +2282,7 @@ function renderSyncBlock() {
         <span class="sync-lock-icon">🔒</span>
         <div>
           <div class="sync-lock-title">Claves configuradas via CI/CD</div>
-          <div class="sync-lock-sub">Apps Script URL y Nutritionix keys fueron inyectadas de forma segura al desplegar. No son visibles ni editables desde la app.</div>
+          <div class="sync-lock-sub">La Apps Script URL y API Ninjas key fueron inyectadas de forma segura al despliegue. No son visibles ni editables desde la app.</div>
         </div>
       </div>`;
   } else {
@@ -1976,8 +2290,7 @@ function renderSyncBlock() {
       <div class="config-banner">
         <strong>🔗 Google Sheets:</strong> URL de Apps Script para sincronización.
         <br><br>
-        <strong>🥗 Nutritionix:</strong> Keys para estimación de calorías precisa.
-        Sin keys, se usa una fórmula local (MET para ejercicio, heurística para comidas).
+        <strong>🥗 API Ninjas:</strong> una key para nutrición, recetas, ejercicios y calorías quemadas. Sin key se usa estimación local (MET + heurística).
       </div>
       <div class="form-group">
         <label>URL Google Apps Script</label>
@@ -1985,20 +2298,13 @@ function renderSyncBlock() {
           value="${CONFIG.scriptUrl}" />
       </div>
       <button class="btn-secondary" style="margin-top:0;margin-bottom:.75rem;" onclick="testConnection()">Probar conexión Sheets</button>
-      <div class="form-grid-2" style="margin-bottom:.25rem">
-        <div class="form-group" style="margin-bottom:0">
-          <label>Nutritionix App ID</label>
-          <input type="text" id="nxAppId" placeholder="xxxxxxxx"
-            value="${CONFIG.nutritionixId}" />
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-          <label>Nutritionix App Key</label>
-          <input type="password" id="nxAppKey" placeholder="••••••••••••••••••••••••••••••••"
-            value="${CONFIG.nutritionixKey}" />
-        </div>
+      <div class="form-group" style="margin-bottom:.25rem">
+        <label>API Ninjas Key</label>
+        <input type="password" id="anApiKey" placeholder="••••••••••••••••••••••••••••••••"
+          value="${CONFIG.apiNinjasKey}" />
       </div>
       <div class="field-hint" style="margin-bottom:1.25rem">
-        Crea cuenta gratis en <a href="https://developer.nutritionix.com" target="_blank" style="color:var(--lime)">developer.nutritionix.com</a> — 500 req/día gratis
+        Obtén tu key en <a href="https://api-ninjas.com/profile" target="_blank" style="color:var(--lime)">api-ninjas.com/profile</a> — plan gratuito disponible
       </div>`;
   }
 }
@@ -2053,18 +2359,16 @@ async function saveSettings() {
   // Save API keys — only if NOT pre-configured by CI
   if (!CONFIG.isPreconfigured) {
     const urlEl  = document.getElementById('scriptUrl');
-    const nxIdEl = document.getElementById('nxAppId');
-    const nxKeyEl= document.getElementById('nxAppKey');
+
     if (urlEl) {
       const url = urlEl.value.trim();
       CONFIG.scriptUrl = url;
       localStorage.setItem('vita_scriptUrl', url);
     }
-    if (nxIdEl && nxKeyEl) {
-      CONFIG.nutritionixId  = nxIdEl.value.trim();
-      CONFIG.nutritionixKey = nxKeyEl.value.trim();
-      localStorage.setItem('vita_nxId',  CONFIG.nutritionixId);
-      localStorage.setItem('vita_nxKey', CONFIG.nutritionixKey);
+    const anEl = document.getElementById('anApiKey');
+    if (anEl) {
+      CONFIG.apiNinjasKey = anEl.value.trim();
+      localStorage.setItem('vita_anKey', CONFIG.apiNinjasKey);
     }
   }
 
