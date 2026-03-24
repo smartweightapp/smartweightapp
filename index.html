@@ -602,6 +602,99 @@
       margin-top: 0.3rem; line-height: 1.4;
     }
 
+
+    /* ── INGREDIENT ROWS ───────────────────────────────────────── */
+    .ingredients-header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: .5rem;
+    }
+    .ingredients-label {
+      font-size: .78rem; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text-2);
+    }
+    .ingredients-hint {
+      font-size: .68rem; color: var(--text-3);
+    }
+    #ingredientRows { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .5rem; }
+    .ingredient-row {
+      display: flex; align-items: center; gap: .4rem;
+      animation: slideIn .15s ease;
+    }
+    .ingredient-input {
+      flex: 1;
+      padding: .6rem .8rem !important;
+      font-size: .88rem !important;
+    }
+    .ingredient-cal-badge {
+      display: inline-flex; align-items: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .72rem; font-weight: 600;
+      color: var(--lime); white-space: nowrap;
+      background: var(--lime-dim);
+      border: 1px solid rgba(181,255,77,.2);
+      border-radius: 50px; padding: .2rem .55rem;
+      flex-shrink: 0;
+    }
+    .ingredient-remove {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border-radius: 6px; font-size: .8rem;
+      color: var(--text-3); display: flex; align-items: center; justify-content: center;
+      transition: all var(--transition);
+    }
+    .ingredient-remove:hover { color: var(--danger); background: var(--danger-dim); }
+    .btn-add-ingredient {
+      width: 100%; padding: .55rem;
+      border: 1px dashed var(--border);
+      border-radius: var(--r-sm);
+      font-size: .82rem; font-weight: 700;
+      color: var(--text-2);
+      transition: all var(--transition);
+      margin-bottom: .75rem;
+      text-align: center;
+    }
+    .btn-add-ingredient:hover {
+      border-color: var(--border-act); color: var(--lime);
+    }
+
+    /* ── FOOD BREAKDOWN ────────────────────────────────────────── */
+    #foodBreakdownWrap {
+      background: rgba(181,255,77,.04);
+      border: 1px solid var(--border-act);
+      border-radius: var(--r-sm);
+      padding: .85rem 1rem;
+      animation: slideIn .25s ease;
+    }
+    .breakdown-list {
+      display: flex; flex-direction: column; gap: .3rem;
+      margin-bottom: .75rem;
+      max-height: 180px; overflow-y: auto;
+    }
+    .breakdown-item {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: .8rem; padding: .2rem 0;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+    .breakdown-item:last-child { border-bottom: none; }
+    .breakdown-item-name { color: var(--text-2); flex: 1; padding-right: .5rem; }
+    .breakdown-item-cal  {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .78rem; font-weight: 600; color: var(--amber);
+      white-space: nowrap;
+    }
+    .breakdown-total-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-top: .6rem;
+      border-top: 1px solid rgba(255,255,255,.08);
+      gap: .75rem;
+    }
+    .breakdown-total-label {
+      font-size: .72rem; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text-2);
+      white-space: nowrap;
+    }
+    .breakdown-total-row .calorie-result-row { flex: 1; justify-content: flex-end; }
+    .breakdown-total-row .calorie-result-input { font-size: 1.6rem !important; text-align: right; }
+
     /* ── SYNC LOCKED BANNER ────────────────────────────────────── */
     .sync-locked-banner {
       display: flex; gap: 0.85rem; align-items: flex-start;
@@ -753,25 +846,10 @@
     <div class="form-card">
       <div class="form-title">➕ Registrar Comida</div>
 
-      <div class="form-group">
-        <label>Nombre del plato / alimento</label>
-        <input type="text" id="foodName" placeholder="Ej: Ensalada César con pollo"
-          oninput="resetFoodCalc()" />
-      </div>
-
-      <div class="form-group">
-        <label>Ingredientes y medidas estimadas</label>
-        <textarea id="foodIngredients" rows="3"
-          placeholder="Ej: Lechuga 2 tazas, Pollo a la plancha 1 pechuga mediana, Aderezo 2 cucharadas, Crutones un puño"
-          style="resize:vertical" oninput="resetFoodCalc()"></textarea>
-        <div class="field-hint">No necesitas ser exacto — describe lo que puedas estimar visualmente</div>
-      </div>
-
-      <div class="form-grid-2" style="margin-bottom:.75rem;">
+      <div class="form-grid-2" style="margin-bottom:.85rem;">
         <div class="form-group" style="margin-bottom:0">
-          <label>Porciones</label>
-          <input type="number" id="foodPortions" placeholder="1" min="0.25" step="0.25" value="1"
-            oninput="resetFoodCalc()" />
+          <label>Nombre del plato</label>
+          <input type="text" id="foodName" placeholder="Ej: Hamburguesa" />
         </div>
         <div class="form-group" style="margin-bottom:0">
           <label>Momento</label>
@@ -784,28 +862,41 @@
         </div>
       </div>
 
-      <!-- AI Estimate button -->
-      <button class="btn-estimate" id="btnEstimateFood" onclick="estimateFoodCalories()">
-        <span class="btn-estimate-icon">✦</span>
-        <span id="btnEstimateFoodLabel">Estimar calorías</span>
+      <!-- Ingredient list -->
+      <div class="ingredients-header">
+        <span class="ingredients-label">Ingredientes</span>
+        <span class="ingredients-hint">Cantidad + alimento</span>
+      </div>
+      <div id="ingredientRows"></div>
+      <button class="btn-add-ingredient" onclick="addIngredientRow()">
+        + Agregar ingrediente
       </button>
 
-      <!-- Calorie result — hidden until estimated -->
-      <div class="calorie-result" id="foodCalResult" style="display:none">
-        <div class="calorie-result-header">
-          <span class="calorie-result-label">Calorías estimadas</span>
-          <span class="calorie-result-badge" id="foodCalBadge">IA</span>
+      <!-- Estimate button -->
+      <button class="btn-estimate" id="btnEstimateFood" onclick="estimateFoodCalories()">
+        <span class="btn-estimate-icon">✦</span>
+        <span id="btnEstimateFoodLabel">Calcular calorías</span>
+      </button>
+
+      <!-- Per-ingredient breakdown — hidden until estimated -->
+      <div id="foodBreakdownWrap" style="display:none">
+        <div class="breakdown-list" id="foodBreakdownList"></div>
+        <div class="breakdown-total-row">
+          <span class="breakdown-total-label">Total estimado</span>
+          <div class="calorie-result-row" style="margin-bottom:0">
+            <input type="number" id="foodCalories" class="calorie-result-input"
+              min="0" placeholder="0" oninput="markFoodManual()" />
+            <span class="calorie-result-unit">kcal</span>
+          </div>
         </div>
-        <div class="calorie-result-row">
-          <input type="number" id="foodCalories" class="calorie-result-input" min="0"
-            placeholder="0" oninput="markFoodManual()" />
-          <span class="calorie-result-unit">kcal</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.4rem">
+          <span class="calorie-result-badge" id="foodCalBadge">Nutritionix</span>
+          <span class="calorie-result-hint">Edita el total si quieres corregirlo</span>
         </div>
-        <div class="calorie-result-reasoning" id="foodCalReasoning"></div>
-        <div class="calorie-result-hint">Puedes editar si quieres corregir la estimación</div>
       </div>
 
-      <button class="btn-primary" id="btnSaveFood" onclick="submitFood()" disabled>
+      <button class="btn-primary" id="btnSaveFood" onclick="submitFood()" disabled
+        style="margin-top:.85rem">
         Guardar comida
       </button>
     </div>
@@ -1251,24 +1342,48 @@ function hasNxKeys() {
   return CONFIG.nutritionixId && CONFIG.nutritionixKey;
 }
 
-// Build a natural-language query from dish name + ingredients
-function buildFoodQuery(name, ingredients, portions) {
-  // Prefer ingredient list (more accurate); fallback to dish name
-  const base = ingredients
-    ? ingredients
-    : name;
-  // If user specified >1 portion, prefix with the count
-  return portions > 1 ? `${portions} servings of ${base}` : base;
+/* ── INGREDIENT ROWS ─────────────────────────────────────────── */
+let _ingredientIdCounter = 0;
+
+function addIngredientRow(defaultText) {
+  const id   = ++_ingredientIdCounter;
+  const wrap = document.getElementById('ingredientRows');
+  const row  = document.createElement('div');
+  row.className = 'ingredient-row';
+  row.id = `irow-${id}`;
+  row.innerHTML = `
+    <input type="text" class="ingredient-input" id="ing-${id}"
+      placeholder="Ej: 2 panes blancos"
+      value="${escHtml(defaultText || '')}"
+      oninput="resetFoodCalc()" />
+    <span class="ingredient-cal-badge" id="ing-cal-${id}" style="display:none"></span>
+    <button class="ingredient-remove" onclick="removeIngredientRow(${id})" title="Quitar">✕</button>`;
+  wrap.appendChild(row);
+  document.getElementById(`ing-${id}`).focus();
+  resetFoodCalc();
+}
+
+function removeIngredientRow(id) {
+  const row = document.getElementById(`irow-${id}`);
+  if (row) row.remove();
+  // Keep at least one row
+  if (!document.getElementById('ingredientRows').children.length) addIngredientRow();
+  resetFoodCalc();
+}
+
+function getIngredientLines() {
+  return [...document.querySelectorAll('.ingredient-input')]
+    .map(el => el.value.trim())
+    .filter(Boolean);
 }
 
 /* ── FOOD ESTIMATION — Nutritionix /natural/nutrients ────────── */
+// Nutritionix accepts a single query with multiple items separated by newlines.
+// Each line is parsed independently and returned as a separate item in foods[].
 async function estimateFoodCalories() {
-  const name        = document.getElementById('foodName').value.trim();
-  const ingredients = document.getElementById('foodIngredients').value.trim();
-  const portions    = parseFloat(document.getElementById('foodPortions').value) || 1;
-
-  if (!name && !ingredients) {
-    showToast('Describe el plato o los ingredientes primero', 'error');
+  const lines = getIngredientLines();
+  if (!lines.length) {
+    showToast('Agrega al menos un ingrediente', 'error');
     return;
   }
 
@@ -1278,10 +1393,16 @@ async function estimateFoodCalories() {
   btn.disabled = true;
   label.textContent = 'Consultando base de datos…';
 
-  // ── Nutritionix path ─────────────────────────────────────────
+  // Clear per-ingredient badges while loading
+  document.querySelectorAll('.ingredient-cal-badge').forEach(b => {
+    b.style.display = 'none'; b.textContent = '';
+  });
+
   if (hasNxKeys()) {
     try {
-      const query = buildFoodQuery(name, ingredients, portions);
+      // Send ALL ingredients in ONE request — Nutritionix parses each line separately
+      const query = lines.join('
+');
       const res   = await fetch('https://trackapi.nutritionix.com/v2/natural/nutrients', {
         method:  'POST',
         headers: getNxHeaders(),
@@ -1289,92 +1410,69 @@ async function estimateFoodCalories() {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || `HTTP ${res.status}`);
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.message || `HTTP ${res.status}`);
       }
 
       const data  = await res.json();
       const foods = data.foods || [];
-
       if (!foods.length) throw new Error('Sin resultados');
 
-      // Sum all returned food items (Nutritionix parses each ingredient separately)
-      const totalCal   = Math.round(foods.reduce((s, f) => s + (f.nf_calories || 0), 0));
-      const breakdown  = foods
-        .map(f => `${f.food_name} ${Math.round(f.nf_calories)} kcal`)
-        .join(' · ');
+      // Match returned items back to input rows (best-effort by order)
+      const inputEls = [...document.querySelectorAll('.ingredient-input')];
+      foods.forEach((food, i) => {
+        const el = inputEls[i];
+        if (!el) return;
+        const rowId = el.id.replace('ing-', '');
+        const badge = document.getElementById(`ing-cal-${rowId}`);
+        if (badge) {
+          badge.textContent = `${Math.round(food.nf_calories)} kcal`;
+          badge.style.display = 'inline-flex';
+        }
+      });
+
+      const totalCal  = Math.round(foods.reduce((s, f) => s + (f.nf_calories || 0), 0));
+      const breakdown = foods.map(f =>
+        `${f.food_name} — ${Math.round(f.nf_calories)} kcal`
+      );
 
       showFoodResult(totalCal, breakdown, 'Nutritionix');
-      label.textContent = '✓ Estimado · vuelve a estimar si cambias algo';
+      label.textContent = '✓ Calculado · modifica ingredientes y recalcula si es necesario';
 
     } catch (err) {
-      console.warn('Nutritionix error:', err.message);
-      showFoodFallback(`Nutritionix: ${err.message}`);
-      label.textContent = 'Estimar calorías';
+      console.warn('Nutritionix food error:', err.message);
+      // Fallback: estimate each line individually with heuristic
+      const result = roughFoodEstimateLines(lines);
+      showFoodResult(result.total, result.breakdown, 'Estimado');
+      label.textContent = `✓ Estimado (fallback: ${err.message})`;
     }
 
-  // ── Offline / no-keys path: MET-style formula ────────────────
   } else {
-    // Rough heuristic from food name when no API key configured
-    const estimate = roughFoodEstimate(name, ingredients, portions);
-    showFoodResult(estimate.calories, estimate.reasoning, 'Estimado');
-    label.textContent = '✓ Estimado (sin API key)';
+    // No API keys — heuristic per line
+    const result = roughFoodEstimateLines(lines);
+    showFoodResult(result.total, result.breakdown, 'Estimado');
+    label.textContent = '✓ Estimado (sin API keys — configura Nutritionix para mayor precisión)';
   }
 
   btn.classList.remove('loading');
   btn.disabled = false;
 }
 
-function showFoodResult(calories, reasoning, source) {
-  document.getElementById('foodCalories').value = calories;
-  document.getElementById('foodCalReasoning').textContent = reasoning;
-  document.getElementById('foodCalResult').style.display = 'block';
+function showFoodResult(totalCal, breakdownArr, source) {
+  // Render per-ingredient breakdown list
+  const listEl = document.getElementById('foodBreakdownList');
+  listEl.innerHTML = breakdownArr.map(line => `
+    <div class="breakdown-item">
+      <span class="breakdown-item-name">${escHtml(line.split(' — ')[0])}</span>
+      <span class="breakdown-item-cal">${escHtml(line.split(' — ')[1] || '')}</span>
+    </div>`).join('');
+
+  document.getElementById('foodCalories').value = totalCal;
+  document.getElementById('foodCalories').classList.remove('manual-edited');
   document.getElementById('foodCalBadge').textContent = source;
   document.getElementById('foodCalBadge').className = 'calorie-result-badge';
-  document.getElementById('foodCalories').classList.remove('manual-edited');
+  document.getElementById('foodBreakdownWrap').style.display = 'block';
   document.getElementById('btnSaveFood').disabled = false;
-}
-
-function showFoodFallback(reason) {
-  document.getElementById('foodCalResult').style.display = 'block';
-  document.getElementById('foodCalReasoning').textContent = reason + ' — ingresa el valor manualmente.';
-  document.getElementById('foodCalBadge').textContent = 'Manual';
-  document.getElementById('foodCalBadge').className = 'calorie-result-badge manual';
-  document.getElementById('btnSaveFood').disabled = false;
-}
-
-// Simple density-based heuristic when Nutritionix unavailable
-function roughFoodEstimate(name, ingredients, portions) {
-  const text = (name + ' ' + ingredients).toLowerCase();
-  // Very rough calories/100g by food category
-  const patterns = [
-    [/(ensalada|salad|lechuga|espinaca|verdura|vegetal)/,  30,  'Ensalada/verduras ~30 kcal/100g'],
-    [/(pollo|chicken|pechuga|turkey|pavo)/,               165, 'Pollo cocido ~165 kcal/100g'],
-    [/(carne|beef|res|bistec|steak|cerdo|pork)/,          250, 'Carne roja ~250 kcal/100g'],
-    [/(arroz|rice|pasta|fideos|espagueti)/,               350, 'Carbohidrato cocido ~350 kcal/100g'],
-    [/(pan|bread|tortilla|taco)/,                         265, 'Pan/tortilla ~265 kcal/100g'],
-    [/(huevo|egg)/,                                       155, 'Huevo ~155 kcal/100g'],
-    [/(leche|milk|yogur|yogurt)/,                          60, 'Lácteo líquido ~60 kcal/100g'],
-    [/(queso|cheese)/,                                    400, 'Queso ~400 kcal/100g'],
-    [/(aguacate|avocado)/,                                160, 'Aguacate ~160 kcal/100g'],
-    [/(frijol|bean|lenteja|garbanzo)/,                    350, 'Legumbre cocida ~350 kcal/taza'],
-    [/(fruta|fruit|manzana|plátano|banana|naranja)/,       50, 'Fruta ~50 kcal/100g'],
-    [/(pizza|hamburguesa|burger|hot dog)/,                260, 'Comida rápida ~260 kcal/100g'],
-  ];
-  for (const [re, base, label] of patterns) {
-    if (re.test(text)) {
-      const cal = Math.round(base * portions);
-      return { calories: cal, reasoning: `${label} × ${portions} porción(es) ≈ ${cal} kcal` };
-    }
-  }
-  const fallback = Math.round(400 * portions);
-  return { calories: fallback, reasoning: `Estimación genérica ~400 kcal/porción × ${portions} = ${fallback} kcal` };
-}
-
-function resetFoodCalc() {
-  document.getElementById('foodCalResult').style.display = 'none';
-  document.getElementById('btnSaveFood').disabled = true;
-  document.getElementById('btnEstimateFoodLabel').textContent = 'Estimar calorías';
 }
 
 function markFoodManual() {
@@ -1384,38 +1482,98 @@ function markFoodManual() {
   document.getElementById('btnSaveFood').disabled = false;
 }
 
+function resetFoodCalc() {
+  document.getElementById('foodBreakdownWrap').style.display = 'none';
+  document.getElementById('btnSaveFood').disabled = true;
+  document.getElementById('btnEstimateFoodLabel').textContent = 'Calcular calorías';
+  document.querySelectorAll('.ingredient-cal-badge').forEach(b => {
+    b.style.display = 'none'; b.textContent = '';
+  });
+}
+
+// Heuristic fallback — runs per line when Nutritionix unavailable
+const FOOD_PATTERNS = [
+  [/(lechuga|espinaca|verdura|vegetal|pepino|apio|brócoli|brocoli|zanahoria|tomate|jitomate)/i, 20,  'Verdura'],
+  [/(pollo|chicken|pechuga|turkey|pavo)/i,               165, 'Pollo'],
+  [/(carne|beef|res|bistec|steak|hamburguesa|burger)/i,  250, 'Carne de res'],
+  [/(cerdo|pork|tocino|bacon|jamón|jamon|salchicha)/i,   280, 'Cerdo/embutido'],
+  [/(salmón|salmon|atún|atun|pescado|tilapia|camarón)/i, 150, 'Mariscos/pescado'],
+  [/(arroz|rice)/i,                                      130, 'Arroz cocido (taza)'],
+  [/(pasta|fideos|espagueti|macarrón)/i,                 220, 'Pasta cocida (taza)'],
+  [/(pan|bread|baguette|bolillo|tortilla)/i,             130, 'Pan/tortilla (pieza)'],
+  [/(huevo|egg)/i,                                        78, 'Huevo (pieza)'],
+  [/(leche|milk)/i,                                      120, 'Leche (taza)'],
+  [/(yogur|yogurt)/i,                                    100, 'Yogurt (taza)'],
+  [/(queso|cheese)/i,                                    113, 'Queso (rebanada)'],
+  [/(aguacate|avocado)/i,                                160, 'Aguacate (mitad)'],
+  [/(frijol|bean|lenteja|garbanzo)/i,                    225, 'Legumbre cocida (taza)'],
+  [/(fruta|manzana|plátano|platano|banana|naranja|pera)/i, 80,'Fruta (pieza)'],
+  [/(aceite|oil|mantequilla|butter|mayonesa|mayo)/i,     120, 'Grasa (cucharada)'],
+  [/(aderezo|dressing|salsa)/i,                           60, 'Condimento'],
+  [/(refresco|soda|jugo|juice)/i,                        150, 'Bebida azucarada (vaso)'],
+];
+
+function roughFoodEstimateLines(lines) {
+  let total = 0;
+  const breakdown = [];
+  for (const line of lines) {
+    // Extract numeric quantity from the beginning if present ("2 panes")
+    const qty   = parseFloat(line) || 1;
+    let   match = null;
+    for (const [re, base, label] of FOOD_PATTERNS) {
+      if (re.test(line)) { match = { base, label }; break; }
+    }
+    const cal = match ? Math.round(match.base * qty) : Math.round(200 * qty);
+    const lbl = match ? match.label : 'Alimento genérico';
+    total += cal;
+    breakdown.push(`${line} — ${cal} kcal (${lbl})`);
+
+    // Also set per-ingredient badge
+    const inputEls = [...document.querySelectorAll('.ingredient-input')];
+    const idx = inputEls.findIndex(el => el.value.trim() === line);
+    if (idx >= 0) {
+      const rowId = inputEls[idx].id.replace('ing-', '');
+      const badge = document.getElementById(`ing-cal-${rowId}`);
+      if (badge) { badge.textContent = `${cal} kcal`; badge.style.display = 'inline-flex'; }
+    }
+  }
+  return { total, breakdown };
+}
+
 /* ── FOOD SUBMIT ─────────────────────────────────────────────── */
 async function submitFood() {
-  const name = document.getElementById('foodName').value.trim();
-  const cals = parseFloat(document.getElementById('foodCalories').value);
-  if (!name && !document.getElementById('foodIngredients').value.trim()) {
-    showToast('Describe el plato o los ingredientes', 'error'); return;
-  }
+  const lines = getIngredientLines();
+  const cals  = parseFloat(document.getElementById('foodCalories').value);
+  const name  = document.getElementById('foodName').value.trim()
+                || lines.slice(0,2).join(', ');
+
+  if (!lines.length) { showToast('Agrega al menos un ingrediente', 'error'); return; }
   if (isNaN(cals) || cals < 0) { showToast('Estimación de calorías inválida', 'error'); return; }
 
-  const portions = parseFloat(document.getElementById('foodPortions').value) || 1;
   const entry = {
-    id:          Date.now().toString(),
-    date:        state.today,
-    name:        name || document.getElementById('foodIngredients').value.trim().slice(0,40),
-    ingredients: document.getElementById('foodIngredients').value.trim(),
-    calories:    Math.round(cals / portions),   // per-portion for storage
-    portions,
-    meal:        document.getElementById('foodMeal').value,
-    aiEstimated: document.getElementById('foodCalBadge').textContent === 'IA'
+    id:           Date.now().toString(),
+    date:         state.today,
+    name,
+    ingredients:  lines.join(', '),
+    calories:     cals,
+    portions:     1,
+    meal:         document.getElementById('foodMeal').value,
+    totalCalories: cals,
+    aiEstimated:  document.getElementById('foodCalBadge').textContent !== 'Manual'
   };
-  entry.totalCalories = cals;  // already total (IA multiplied by portions)
 
   state.foods[state.profile].push(entry);
   saveEntriesToStorage(state.profile);
   if (CONFIG.scriptUrl) await pushEntry('food', state.profile, entry);
 
   // Reset form
-  ['foodName','foodIngredients'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('foodPortions').value = '1';
-  document.getElementById('foodCalResult').style.display = 'none';
+  document.getElementById('foodName').value = '';
+  document.getElementById('ingredientRows').innerHTML = '';
+  _ingredientIdCounter = 0;
+  addIngredientRow();   // restore one empty row
+  document.getElementById('foodBreakdownWrap').style.display = 'none';
   document.getElementById('btnSaveFood').disabled = true;
-  document.getElementById('btnEstimateFoodLabel').textContent = 'Estimar calorías con IA';
+  document.getElementById('btnEstimateFoodLabel').textContent = 'Calcular calorías';
 
   renderAll();
   showToast('Comida registrada ✓', 'success');
@@ -1950,6 +2108,8 @@ async function init() {
   // 1. Load whatever is in localStorage first (instant render)
   loadEntriesFromStorage('A');
   loadEntriesFromStorage('B');
+  // Bootstrap one empty ingredient row on first load
+  addIngredientRow();
 
   if (CONFIG.scriptUrl) {
     // 2. Sync profiles from Sheets — cross-device source of truth
