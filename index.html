@@ -1321,6 +1321,11 @@ function switchTab(tab) {
     if (navBtn) navBtn.classList.toggle('active', t === tab);
   });
   if (tab === 'historial') renderHistorial();
+  // Ensure at least one ingredient row exists when switching to Comidas
+  if (tab === 'comidas') {
+    const rows = document.getElementById('ingredientRows');
+    if (rows && !rows.children.length) addIngredientRow('', true);
+  }
 }
 
 /* ── CLAUDE API HELPER ───────────────────────────────────────── */
@@ -1345,9 +1350,10 @@ function hasNxKeys() {
 /* ── INGREDIENT ROWS ─────────────────────────────────────────── */
 let _ingredientIdCounter = 0;
 
-function addIngredientRow(defaultText) {
+function addIngredientRow(defaultText, skipFocus) {
   const id   = ++_ingredientIdCounter;
   const wrap = document.getElementById('ingredientRows');
+  if (!wrap) return;   // guard: tab may not be rendered yet
   const row  = document.createElement('div');
   row.className = 'ingredient-row';
   row.id = `irow-${id}`;
@@ -1359,7 +1365,11 @@ function addIngredientRow(defaultText) {
     <span class="ingredient-cal-badge" id="ing-cal-${id}" style="display:none"></span>
     <button class="ingredient-remove" onclick="removeIngredientRow(${id})" title="Quitar">✕</button>`;
   wrap.appendChild(row);
-  document.getElementById(`ing-${id}`).focus();
+  // Only focus when the user explicitly adds a row (not during page init)
+  if (!skipFocus) {
+    const input = document.getElementById(`ing-${id}`);
+    if (input) input.focus();
+  }
   resetFoodCalc();
 }
 
@@ -1367,7 +1377,7 @@ function removeIngredientRow(id) {
   const row = document.getElementById(`irow-${id}`);
   if (row) row.remove();
   // Keep at least one row
-  if (!document.getElementById('ingredientRows').children.length) addIngredientRow();
+  if (!document.getElementById('ingredientRows').children.length) addIngredientRow('', true);
   resetFoodCalc();
 }
 
@@ -1483,9 +1493,12 @@ function markFoodManual() {
 }
 
 function resetFoodCalc() {
-  document.getElementById('foodBreakdownWrap').style.display = 'none';
-  document.getElementById('btnSaveFood').disabled = true;
-  document.getElementById('btnEstimateFoodLabel').textContent = 'Calcular calorías';
+  const wrap  = document.getElementById('foodBreakdownWrap');
+  const save  = document.getElementById('btnSaveFood');
+  const label = document.getElementById('btnEstimateFoodLabel');
+  if (wrap)  wrap.style.display  = 'none';
+  if (save)  save.disabled       = true;
+  if (label) label.textContent   = 'Calcular calorías';
   document.querySelectorAll('.ingredient-cal-badge').forEach(b => {
     b.style.display = 'none'; b.textContent = '';
   });
@@ -1570,7 +1583,7 @@ async function submitFood() {
   document.getElementById('foodName').value = '';
   document.getElementById('ingredientRows').innerHTML = '';
   _ingredientIdCounter = 0;
-  addIngredientRow();   // restore one empty row
+  addIngredientRow('', true);   // restore one empty row, no focus steal
   document.getElementById('foodBreakdownWrap').style.display = 'none';
   document.getElementById('btnSaveFood').disabled = true;
   document.getElementById('btnEstimateFoodLabel').textContent = 'Calcular calorías';
@@ -2108,8 +2121,6 @@ async function init() {
   // 1. Load whatever is in localStorage first (instant render)
   loadEntriesFromStorage('A');
   loadEntriesFromStorage('B');
-  // Bootstrap one empty ingredient row on first load
-  addIngredientRow();
 
   if (CONFIG.scriptUrl) {
     // 2. Sync profiles from Sheets — cross-device source of truth
@@ -2126,7 +2137,10 @@ async function init() {
   // 4. Render with fresh data
   renderAll();
 
-  // 5. Nudge unconfigured profiles to open settings
+  // 5. Bootstrap ingredient row AFTER render so DOM elements exist
+  addIngredientRow('', true);   // skipFocus=true — don't steal focus on load
+
+  // 6. Nudge unconfigured profiles to open settings
   const prof = state.profiles[state.profile];
   if (!prof.configured) {
     showUnconfiguredBanner();
