@@ -1,105 +1,122 @@
-# VitaTrack — Guía de Despliegue
+# VitaTrack — Guía de Despliegue Seguro
 
-## 📁 Archivos incluidos
-
-| Archivo    | Descripción |
-|------------|-------------|
-| `index.html` | Aplicación web completa (HTML + CSS + JS en un solo archivo) |
-| `Code.gs`    | Backend de Google Apps Script para persistencia en Google Sheets |
-
----
-
-## 🚀 Parte 1 — Desplegar en GitHub Pages
-
-1. Crea un repositorio en GitHub (puede ser público o privado con Pages habilitado).
-2. Sube `index.html` a la raíz del repositorio.
-3. Ve a **Settings → Pages** en tu repositorio.
-4. En *Source*, selecciona la rama `main` y la carpeta `/ (root)`.
-5. Haz clic en **Save**. Tu app estará disponible en `https://TU-USUARIO.github.io/NOMBRE-REPO/`.
-
----
-
-## 🔗 Parte 2 — Configurar Google Apps Script (Backend)
-
-### Paso 1 — Crear el proyecto
-
-1. Ve a [https://script.google.com](https://script.google.com)
-2. Haz clic en **Nuevo proyecto**
-3. Borra el contenido de `Code.gs` y pega todo el contenido del archivo `Code.gs` incluido en este paquete.
-
-### Paso 2 — Probar localmente
-
-1. Selecciona la función `testSetup` en el desplegable del editor.
-2. Haz clic en **Ejecutar**.
-3. Revisa los **Registros de ejecución** (panel inferior) — deberías ver el ID del Spreadsheet creado y confirmaciones de inserción.
-
-### Paso 3 — Desplegar como Web App
-
-1. Haz clic en **Implementar → Nueva implementación**
-2. Haz clic en el ícono de engranaje ⚙ junto a "Tipo" y selecciona **Aplicación web**
-3. Configura:
-   - **Descripción:** `VitaTrack API v1`
-   - **Ejecutar como:** Tu cuenta de Google
-   - **Quién tiene acceso:** `Cualquier usuario` *(necesario para que GitHub Pages pueda llamar a la API)*
-4. Haz clic en **Implementar**
-5. **Copia la URL** que aparece (tiene la forma `https://script.google.com/macros/s/XXXXXXXXXX/exec`)
-
-### Paso 4 — Conectar la app
-
-1. Abre tu VitaTrack desplegada en GitHub Pages.
-2. Haz clic en el ícono ⚙ (Configuración) en la cabecera.
-3. Pega la URL copiada en el campo **URL Google Apps Script**.
-4. Haz clic en **Probar conexión** — deberías ver "Conexión exitosa ✓".
-5. Configura los perfiles A y B y guarda.
-
----
-
-## 📊 Estructura de Google Sheets generada automáticamente
+## 📁 Estructura del repositorio
 
 ```
-📄 VitaTrack — Health Data
-├── 📋 Profiles     → Datos de perfil (usuario A y B)
-├── 🍽️ Foods        → Registro de comidas de ambos usuarios
-└── 🏃 Exercises    → Registro de ejercicios de ambos usuarios
+vitatrack/
+├── index.html                        ← App completa (con token placeholder)
+├── Code.gs                           ← Backend Google Apps Script
+├── README.md
+└── .github/
+    └── workflows/
+        └── deploy.yml                ← Pipeline CI/CD con inyección de secretos
 ```
-
-### Hoja `Profiles`
-| user | name | sex | age | weight | height | activity | updatedAt |
-|------|------|-----|-----|--------|--------|----------|-----------|
-| A | Ana García | female | 28 | 62 | 165 | 1.55 | 2026-03-24T... |
-
-### Hoja `Foods`
-| id | user | date | name | ingredients | calories | portions | totalCalories | meal | createdAt |
-|----|------|------|------|-------------|----------|----------|---------------|------|-----------|
-
-### Hoja `Exercises`
-| id | user | date | name | duration | caloriesBurned | intensity | notes | createdAt |
-|----|------|------|------|----------|----------------|-----------|-------|-----------|
 
 ---
 
-## 🧮 Fórmulas implementadas
+## 🔒 Cómo funciona la seguridad
 
-### IMC (Índice de Masa Corporal)
+```
+Repo (git)                GitHub Actions              GitHub Pages (live)
+─────────────────         ──────────────────          ──────────────────
+index.html                Secrets store:              dist/index.html
+  url:'__APPS_       →      APPS_SCRIPT_URL      →      url:'https://script.
+  SCRIPT_URL__'         (solo visible para admins)       google.com/macros/...'
+  (token literal)                                    (URL real, solo en artefacto)
+```
+
+La URL de Apps Script **nunca aparece en git**. Solo existe en:
+- El almacén cifrado de Secrets de GitHub
+- El artefacto de Pages generado durante el deploy
+
+---
+
+## 🚀 Setup paso a paso
+
+### Paso 1 — Configurar Google Apps Script
+
+1. Ir a https://script.google.com → **Nuevo proyecto**
+2. Pegar el contenido de `Code.gs`
+3. Ejecutar la función `testSetup()` para verificar que crea el Spreadsheet
+4. **Implementar → Nueva implementación:**
+   - Tipo: `Aplicación web`
+   - Ejecutar como: `Yo`
+   - Quién tiene acceso: `Cualquier usuario`
+5. Copiar la URL (formato `https://script.google.com/macros/s/AKfy.../exec`)
+
+### Paso 2 — Crear el repositorio en GitHub
+
+```bash
+git init
+git add index.html Code.gs README.md .github/
+git commit -m "feat: initial VitaTrack setup"
+git remote add origin https://github.com/TU-USUARIO/vitatrack.git
+git push -u origin main
+```
+
+> ⚠️ Verificar que `index.html` contiene `__APPS_SCRIPT_URL__` (el token, NO la URL real) antes del push.
+
+### Paso 3 — Registrar secretos en GitHub
+
+Settings → Secrets and variables → Actions → **New repository secret**
+
+| Secret name | Value | Requerido |
+|---|---|---|
+| `APPS_SCRIPT_URL` | URL completa del Apps Script | ✅ Sí |
+| `PROFILE_A_NAME` | Nombre del Usuario A (ej: Ana) | ❌ Opcional |
+| `PROFILE_B_NAME` | Nombre del Usuario B (ej: Carlos) | ❌ Opcional |
+
+### Paso 4 — Habilitar GitHub Pages
+
+Settings → Pages → Source: **GitHub Actions** (no "Deploy from a branch")
+
+### Paso 5 — Primer deploy
+
+El workflow se dispara automáticamente con cada push a `main`.
+Para deploy manual: Actions → Deploy VitaTrack → **Run workflow**
+
+---
+
+## ✅ Auditoría de seguridad automática
+
+En cada deploy el workflow verifica que el token fue reemplazado:
+
+```
+✓ APPS_SCRIPT_URL secret is present
+✓ Token __APPS_SCRIPT_URL__ substituted
+✓ Security audit passed
+```
+
+Si el secret no está configurado, el deploy **falla antes de publicar**:
+```
+::error::SECURITY: Token __APPS_SCRIPT_URL__ was NOT replaced.
+```
+
+---
+
+## 🔄 Actualizar la URL de Apps Script
+
+1. Settings → Secrets → `APPS_SCRIPT_URL` → **Update**
+2. Actions → **Run workflow**
+El artefacto se redespliega con la nueva URL automáticamente.
+
+---
+
+## 🧮 Fórmulas
+
+### IMC
 ```
 IMC = peso(kg) / altura(m)²
 ```
-| Rango | Categoría |
-|-------|-----------|
-| < 18.5 | Bajo peso |
-| 18.5 – 24.9 | Normal |
-| 25 – 29.9 | Sobrepeso |
-| ≥ 30 | Obesidad |
 
 ### TDEE — Mifflin-St Jeor
 ```
 Hombres: BMR = (10 × kg) + (6.25 × cm) − (5 × años) + 5
 Mujeres: BMR = (10 × kg) + (6.25 × cm) − (5 × años) − 161
-
-TDEE = BMR × Factor de actividad
+TDEE = BMR × factor_actividad
 ```
 | Nivel | Factor |
-|-------|--------|
+|---|---|
 | Sedentario | × 1.2 |
 | Ligeramente activo | × 1.375 |
 | Moderadamente activo | × 1.55 |
@@ -108,20 +125,10 @@ TDEE = BMR × Factor de actividad
 
 ---
 
-## ⚠️ Nota sobre CORS
+## 📊 Google Sheets (auto-generado)
 
-Google Apps Script usa `no-cors` para peticiones POST desde dominios externos.
-Las respuestas de las operaciones de escritura (POST) no son accesibles desde el navegador directamente, pero los datos **sí se guardan** en Sheets.
-
-Para lectura (GET), el script responde con JSON accesible directamente.
-
-Si necesitas confirmación de escritura en tiempo real, considera usar una API key con el endpoint estándar de Sheets API v4.
-
----
-
-## 🔒 Seguridad
-
-- Los datos se guardan en **tu propia cuenta de Google**.
-- La app funciona 100% offline con localStorage como fallback.
-- No hay servidor intermediario — la comunicación es directamente entre el navegador y tu Google Apps Script.
-- Para uso privado, puedes cambiar "Quién tiene acceso" a "Solo yo" y agregar autenticación con OAuth.
+```
+Profiles   → user | name | sex | age | weight | height | activity | updatedAt
+Foods      → id | user | date | name | ingredients | calories | portions | totalCalories | meal | createdAt
+Exercises  → id | user | date | name | duration | caloriesBurned | intensity | notes | createdAt
+```
