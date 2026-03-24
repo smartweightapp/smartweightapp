@@ -933,7 +933,8 @@
         <label>Nombre del plato</label>
         <div class="input-action-row">
           <input type="text" id="foodName" placeholder="Ej: Hamburguesa, Tacos, Ensalada César"
-            oninput="onFoodNameInput(event)" autocomplete="off" />
+            oninput="onFoodNameInput(event)" autocomplete="off"
+            onblur="setTimeout(()=>hideDropdown('recipeSuggestions'),150)" />
           <button class="btn-lookup" id="btnRecipeLookup" onclick="lookupRecipe()"
             title="Buscar receta y auto-llenar ingredientes">
             <span id="recipeLookupIcon">📖</span>
@@ -1017,7 +1018,8 @@
         <label>Tipo de actividad</label>
         <input type="text" id="exName"
           placeholder="Ej: running, push ups, cycling, yoga..."
-          oninput="onExNameInput(event)" onchange="resetExCalc()" autocomplete="off" />
+          oninput="onExNameInput(event)" onchange="resetExCalc()" autocomplete="off"
+          onblur="setTimeout(()=>hideDropdown('exSuggestions'),150)" />
         <div class="field-hint">Escribe en inglés o español — autocompletará con ejercicios reales</div>
         <div class="ac-dropdown" id="exSuggestions" style="display:none"></div>
       </div>
@@ -1205,6 +1207,12 @@ const CONFIG = {
   isPreconfigured: _IS_CI,
   timeout:         8000
 };
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 
 /* ── CI-BAKED PROFILE NAMES ─────────────────────────────────── */
 // These are injected by GitHub Actions from secrets.
@@ -1535,11 +1543,7 @@ function applyRecipe(recipe) {
   // Parse ingredients from recipe.ingredients string
   // API Ninjas returns a pipe-separated or newline list like "2 cups flour|1 egg|..."
   const raw = recipe.ingredients || '';
-  const lines = raw
-    .split(/[|
-]+/)
-    .map(s => s.trim())
-    .filter(Boolean);
+  const lines = raw.replace(/\|/g, '\n').split('\n').map(s => s.trim()).filter(Boolean);
 
   if (!lines.length) {
     showToast('Receta encontrada pero sin lista de ingredientes — agrégalos manualmente', 'loading');
@@ -1810,13 +1814,13 @@ function resetFoodCalc() {
 
 // Heuristic fallback — per line, when no API key
 const FOOD_PATTERNS = [
-  [/(lechuga|espinaca|verdura|vegetal|pepino|apio|brócoli|brocoli|zanahoria|tomate|jitomate)/i, 20,  'Verdura'],
+  [/(lechuga|espinaca|verdura|vegetal|pepino|apio|brocoli|brocoli|zanahoria|tomate|jitomate)/i, 20,  'Verdura'],
   [/(pollo|chicken|pechuga|turkey|pavo)/i,               165, 'Pollo'],
   [/(carne|beef|res|bistec|steak|hamburguesa|burger)/i,  250, 'Carne de res'],
-  [/(cerdo|pork|tocino|bacon|jamón|jamon|salchicha)/i,   280, 'Cerdo/embutido'],
-  [/(salmón|salmon|atún|atun|pescado|tilapia|camarón)/i, 150, 'Mariscos/pescado'],
+  [/(cerdo|pork|tocino|bacon|jamon|jamon|salchicha)/i,   280, 'Cerdo/embutido'],
+  [/(salmon|salmon|atun|atun|pescado|tilapia|camaron)/i, 150, 'Mariscos/pescado'],
   [/(arroz|rice)/i,                                      130, 'Arroz cocido'],
-  [/(pasta|fideos|espagueti|macarrón)/i,                 220, 'Pasta cocida'],
+  [/(pasta|fideos|espagueti|macarron)/i,                 220, 'Pasta cocida'],
   [/(pan|bread|baguette|bolillo|tortilla)/i,             130, 'Pan/tortilla'],
   [/(huevo|egg)/i,                                        78, 'Huevo'],
   [/(leche|milk)/i,                                      120, 'Leche'],
@@ -1824,7 +1828,7 @@ const FOOD_PATTERNS = [
   [/(queso|cheese)/i,                                    113, 'Queso'],
   [/(aguacate|avocado)/i,                                160, 'Aguacate'],
   [/(frijol|bean|lenteja|garbanzo)/i,                    225, 'Legumbre'],
-  [/(fruta|manzana|plátano|platano|banana|naranja|pera)/i, 80,'Fruta'],
+  [/(fruta|manzana|platano|platano|banana|naranja|pera)/i, 80,'Fruta'],
   [/(aceite|oil|mantequilla|butter|mayonesa|mayo)/i,     120, 'Grasa'],
   [/(aderezo|dressing|salsa)/i,                           60, 'Condimento'],
   [/(refresco|soda|jugo|juice)/i,                        150, 'Bebida azucarada'],
@@ -1945,12 +1949,12 @@ const MET_TABLE = [
   [/(corr|run|jog|trotar)/,                      6.0,  9.0, 13.0, 'Correr'],
   [/(caminat|caminar|walk)/,                     2.5,  3.5,  4.5, 'Caminar'],
   [/(biciclet|ciclism|cycling|bike)/,            4.0,  7.0, 10.0, 'Ciclismo'],
-  [/(nadar|natación|swimming|swim)/,             5.0,  7.0, 10.0, 'Natación'],
+  [/(nadar|natacion|swimming|swim)/,             5.0,  7.0, 10.0, 'Natación'],
   [/(pesas|weights|gym|musculac|fuerza|lift)/,   3.0,  5.0,  6.0, 'Pesas/gym'],
   [/(hiit|interval|tabata|crossfit)/,            7.0,  9.0, 12.0, 'HIIT/CrossFit'],
   [/(yoga|pilates|stretching|estiramiento)/,     2.0,  3.0,  4.0, 'Yoga/Pilates'],
-  [/(fútbol|soccer|futbol|basketball|tenis)/,    7.0,  9.0, 11.0, 'Deporte equipo'],
-  [/(elíptica|elliptical|escaladora|stair)/,     4.0,  6.5,  9.0, 'Cardio máquina'],
+  [/(futbol|soccer|futbol|basketball|tenis)/,    7.0,  9.0, 11.0, 'Deporte equipo'],
+  [/(eliptica|elliptical|escaladora|stair)/,     4.0,  6.5,  9.0, 'Cardio máquina'],
   [/(bailar|baile|dance|zumba)/,                 4.5,  6.0,  8.0, 'Baile/Zumba'],
   [/(boxeo|boxing|kickboxing|artes marciales)/,  7.0,  9.5, 12.0, 'Artes marciales'],
   [/(remo|rowing|kayak)/,                        4.0,  7.0, 10.0, 'Remo'],
@@ -2060,7 +2064,7 @@ async function submitExercise() {
     caloriesBurned: cals,
     intensity:      document.getElementById('exIntensity').value,
     notes:          document.getElementById('exNotes').value.trim(),
-    aiEstimated:    document.getElementById('exCalBadge').textContent === 'IA'
+    apiEstimated:   !['Manual','MET'].includes(document.getElementById('exCalBadge').textContent)
   };
 
   state.exercises[state.profile].push(entry);
@@ -2409,11 +2413,6 @@ function showToast(msg, type = 'success') {
 }
 
 /* ── UTILS ──────────────────────────────────────────────────── */
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 
 /* ── CLOSE MODAL ON OVERLAY CLICK ───────────────────────────── */
 document.getElementById('settingsModal').addEventListener('click', function(e) {
