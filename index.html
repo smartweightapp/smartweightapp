@@ -559,7 +559,7 @@
   <!-- Date / Profile label -->
   <div class="date-bar">
     <span class="date-display" id="dateDisplay"></span>
-    <span class="profile-name-display" id="profileNameDisplay">Usuario A</span>
+    <span class="profile-name-display" id="profileNameDisplay">__PROFILE_A_NAME__</span>
   </div>
 
   <!-- ── NAVIGATION TABS ─────────────────────────────────────── -->
@@ -773,8 +773,8 @@
     </div>
 
     <div class="settings-tabs">
-      <button class="settings-tab active" id="stab-A" onclick="switchSettingsProfile('A')">Usuario A</button>
-      <button class="settings-tab" id="stab-B" onclick="switchSettingsProfile('B')">Usuario B</button>
+      <button class="settings-tab active" id="stab-A" onclick="switchSettingsProfile('A')">__PROFILE_A_NAME__</button>
+      <button class="settings-tab" id="stab-B" onclick="switchSettingsProfile('B')">__PROFILE_B_NAME__</button>
     </div>
 
     <div id="settingsForm">
@@ -857,7 +857,7 @@ const state = {
 function loadProfileFromStorage(user) {
   const raw = localStorage.getItem(`vita_profile_${user}`);
   return raw ? JSON.parse(raw) : {
-    name: user === 'A' ? 'Usuario A' : 'Usuario B',
+    name: user === 'A' ? '__PROFILE_A_NAME__' : '__PROFILE_B_NAME__',
     sex: 'male', age: 0, weight: 0, height: 0, activity: 1.55
   };
 }
