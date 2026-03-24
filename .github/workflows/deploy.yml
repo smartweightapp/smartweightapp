@@ -1,36 +1,137 @@
-# This is a basic workflow to help you get started with Actions
+# ════════════════════════════════════════════════════════════════
+#  VitaTrack — GitHub Actions Deploy Pipeline
+#  Injects secrets at build-time and deploys to GitHub Pages.
+#
+#  REQUIRED SECRETS (Settings → Secrets → Actions → New repository secret):
+#
+#    APPS_SCRIPT_URL   → Full URL of your deployed Google Apps Script
+#                        e.g. https://script.google.com/macros/s/AKfy.../exec
+#
+#  OPTIONAL SECRETS (extend as needed):
+#    PROFILE_A_NAME    → Display name for User A  (default: "Usuario A")
+#    PROFILE_B_NAME    → Display name for User B  (default: "Usuario B")
+#
+#  HOW IT WORKS:
+#    1. Checks out your source (index.html has __APPS_SCRIPT_URL__ as placeholder)
+#    2. sed replaces every token with the real secret value
+#    3. Uploads the substituted file to GitHub Pages
+#    The real URL is NEVER committed to git — it only exists in the deployed artifact.
+# ════════════════════════════════════════════════════════════════
 
-name: CI
+name: Deploy VitaTrack to GitHub Pages
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ "main" ]        # Deploy on every push to main
+  workflow_dispatch:             # Allow manual trigger from Actions tab
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+# Grant GITHUB_TOKEN write access to Pages
+permissions:
+  contents: read
+  pages:    write
+  id-token: write
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# Allow only one concurrent deployment
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  build-and-deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      # ── 1. Checkout source ─────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      # ── 2. Validate required secrets ───────────────────────────
+      - name: Validate secrets are set
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          if [ -z "${{ secrets.APPS_SCRIPT_URL }}" ]; then
+            echo "::error::Secret APPS_SCRIPT_URL is not set."
+            echo "::error::Go to Settings → Secrets → Actions → New repository secret"
+            exit 1
+          fi
+          echo "✓ APPS_SCRIPT_URL secret is present"
+
+      # ── 3. Create dist/ folder ──────────────────────────────────
+      - name: Prepare dist directory
+        run: mkdir -p dist
+
+      # ── 4. Inject secrets via sed ───────────────────────────────
+      #  Uses a separator that will never appear in a URL (|)
+      #  so we don't need to escape forward slashes.
+      - name: Inject APPS_SCRIPT_URL into index.html
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+        run: |
+          sed "s|__APPS_SCRIPT_URL__|${APPS_SCRIPT_URL}|g" index.html > dist/index.html
+          echo "✓ Token __APPS_SCRIPT_URL__ substituted"
+
+      # ── 5. Inject optional profile names ──────────────────────
+      - name: Inject optional profile names
+        env:
+          PROFILE_A_NAME: ${{ secrets.PROFILE_A_NAME }}
+          PROFILE_B_NAME: ${{ secrets.PROFILE_B_NAME }}
+        run: |
+          # Only replace if secrets are actually set (non-empty)
+          if [ -n "$PROFILE_A_NAME" ]; then
+            sed -i "s|__PROFILE_A_NAME__|${PROFILE_A_NAME}|g" dist/index.html
+            echo "✓ Profile A name injected"
+          else
+            sed -i "s|__PROFILE_A_NAME__|Usuario A|g" dist/index.html
+          fi
+          if [ -n "$PROFILE_B_NAME" ]; then
+            sed -i "s|__PROFILE_B_NAME__|${PROFILE_B_NAME}|g" dist/index.html
+            echo "✓ Profile B name injected"
+          else
+            sed -i "s|__PROFILE_B_NAME__|Usuario B|g" dist/index.html
+          fi
+
+      # ── 6. Security audit — ensure no tokens leaked ────────────
+      - name: Security audit — verify no raw tokens in dist
+        run: |
+          echo "Scanning dist/index.html for unreplaced tokens..."
+          if grep -q "__APPS_SCRIPT_URL__" dist/index.html; then
+            echo "::error::SECURITY: Token __APPS_SCRIPT_URL__ was NOT replaced. Check that the secret is set."
+            exit 1
+          fi
+          if grep -qE "script\.google\.com/macros/s/[A-Za-z0-9_-]{10,}" dist/index.html; then
+            echo "::notice::Apps Script URL is present in the artifact (expected, it was injected from secret)."
+          fi
+          echo "✓ Security audit passed"
+
+      # ── 7. Copy any extra static assets (favicon, etc.) ────────
+      - name: Copy static assets
+        run: |
+          # Copy any extra files (images, manifest, etc.) if they exist
+          for f in favicon.ico favicon.png apple-touch-icon.png manifest.json robots.txt; do
+            [ -f "$f" ] && cp "$f" dist/ && echo "Copied $f" || true
+          done
+
+      # ── 8. Upload artifact to Pages ────────────────────────────
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+      # ── 9. Deploy ──────────────────────────────────────────────
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      # ── 10. Post-deploy summary ────────────────────────────────
+      - name: Deployment summary
+        run: |
+          echo "## ✅ VitaTrack deployed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **URL:** ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "🔒 **Apps Script URL:** injected from secret (not visible in source)" >> $GITHUB_STEP_SUMMARY
+          echo "📅 **Deployed at:** $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
