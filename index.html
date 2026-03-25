@@ -700,16 +700,19 @@
     /* ── INGREDIENT ROW WITH PORTION ──────────────────────────── */
     .ingredient-row-wrap { display: flex; flex-direction: column; margin-bottom: .45rem; }
     .ing-portion-row {
-      display: flex; align-items: center; gap: .5rem;
-      padding: .3rem .35rem .3rem 0;
-      margin-left: .25rem;
-      flex-wrap: wrap;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .35rem .5rem;
+      background: rgba(181,255,77,.04);
+      border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 var(--r-sm) var(--r-sm);
+      gap: .5rem; flex-wrap: wrap;
     }
     .ing-unit-label {
       font-size: .72rem; color: var(--text-2); flex: 1; min-width: 80px;
       font-style: italic;
     }
-    .ing-factor-wrap {
+    .ing-factor-wrap,
+    .ing-qty-wrap {
       display: flex; align-items: center; gap: .2rem;
     }
     .ing-factor-btn {
@@ -1907,6 +1910,8 @@ function switchTab(tab) {
   if (tab === 'comidas') {
     const rows = document.getElementById('ingredientRows');
     if (rows && !rows.children.length) addIngredientRow('', true);
+    // Preload ingredient cache in background so first search is instant
+    if (CONFIG.scriptUrl) loadIngredientes();
   }
 }
 
@@ -1914,27 +1919,61 @@ function switchTab(tab) {
    INGREDIENTES + RECETARIO  —  Sheets-backed, shared across profiles
 ═══════════════════════════════════════════════════════════════ */
 
+/* ── DROPDOWN HELPERS ───────────────────────────────────────── */
+function showDropdown(dropdownId, items, onSelect) {
+  const el = document.getElementById(dropdownId);
+  if (!el) return;
+  if (!items.length) { el.style.display = 'none'; return; }
+  el.innerHTML = '';
+  items.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'ac-item';
+    div.innerHTML = item.label;
+    // Use mousedown (fires before blur) so click registers before dropdown hides
+    div.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      onSelect(item);
+      el.style.display = 'none';
+    });
+    el.appendChild(div);
+  });
+  el.style.display = 'block';
+}
+
+function hideDropdown(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+
 // In-memory cache so we don't hit Sheets on every keystroke
 const _cache = { ingredientes: null, recetario: null };
 
 async function loadIngredientes() {
-  if (_cache.ingredientes) return _cache.ingredientes;
+  if (_cache.ingredientes && _cache.ingredientes.length) return _cache.ingredientes;
   if (!CONFIG.scriptUrl) return [];
   try {
     const data = await apiGet({ action: 'getIngredientes' });
-    _cache.ingredientes = data.items || [];
-  } catch (_) { _cache.ingredientes = []; }
-  return _cache.ingredientes;
+    const items = data && data.items ? data.items : [];
+    if (items.length) _cache.ingredientes = items;   // only cache if we got real data
+    return items;
+  } catch (err) {
+    console.warn('loadIngredientes error:', err);
+    return [];
+  }
 }
 
 async function loadRecetario() {
-  if (_cache.recetario) return _cache.recetario;
+  if (_cache.recetario && _cache.recetario.length) return _cache.recetario;
   if (!CONFIG.scriptUrl) return [];
   try {
     const data = await apiGet({ action: 'getRecetario' });
-    _cache.recetario = data.items || [];
-  } catch (_) { _cache.recetario = []; }
-  return _cache.recetario;
+    const items = data && data.items ? data.items : [];
+    if (items.length) _cache.recetario = items;
+    return items;
+  } catch (err) {
+    console.warn('loadRecetario error:', err);
+    return [];
+  }
 }
 
 function invalidateCache() {
@@ -1978,24 +2017,27 @@ function addIngredientRow(defaultText, skipFocus) {
     <div class="ingredient-row">
       <div class="ingredient-input-wrap" style="flex:1;position:relative">
         <input type="text" class="ingredient-input" id="ing-${id}"
-          placeholder="Buscar ingrediente…"
+          placeholder="Escribe para buscar…"
           value="${escHtml(defaultText || '')}"
           autocomplete="off"
           oninput="onIngredientInput(event,${id})"
-          onblur="setTimeout(()=>hideDropdown('ing-ac-${id}'),180)" />
+          onblur="setTimeout(()=>hideDropdown('ing-ac-${id}'),200)" />
         <div class="ac-dropdown" id="ing-ac-${id}" style="display:none"></div>
       </div>
       <button class="ingredient-remove" onclick="removeIngredientRow(${id})" title="Quitar">✕</button>
     </div>
-    <!-- Portion selector — shown after ingredient is selected -->
+    <!-- Qty row — appears after selecting an ingredient -->
     <div class="ing-portion-row" id="ing-portion-${id}" style="display:none">
-      <span class="ing-unit-label" id="ing-unit-${id}"></span>
-      <div class="ing-factor-wrap">
-        <button class="ing-factor-btn" onclick="changeIngFactor(${id},-0.5)">−</button>
-        <input type="number" class="ing-factor-input" id="ing-factor-${id}"
-          value="1" min="0.25" step="0.25"
-          oninput="onIngFactorChange(${id})" />
-        <button class="ing-factor-btn" onclick="changeIngFactor(${id},0.5)">+</button>
+      <div class="ing-qty-block">
+        <span class="ing-qty-label">Cantidad:</span>
+        <div class="ing-qty-wrap">
+          <button class="ing-factor-btn" onclick="changeIngQty(${id},-0.5)">−</button>
+          <input type="number" class="ing-factor-input" id="ing-qty-${id}"
+            value="1" min="0.25" step="0.5"
+            oninput="onIngQtyChange(${id})" />
+          <button class="ing-factor-btn" onclick="changeIngQty(${id},0.5)">+</button>
+        </div>
+        <span class="ing-unit-label" id="ing-unit-${id}">unidad</span>
       </div>
       <span class="ingredient-cal-badge" id="ing-cal-${id}" style="display:inline-flex">— kcal</span>
     </div>`;
@@ -2043,14 +2085,32 @@ function onIngredientInput(e, rowId) {
 
 async function _searchIngSheet(rowId, query) {
   if (query.length < 1) { hideDropdown(`ing-ac-${rowId}`); return; }
+  // Show loading indicator while fetching
+  const dd = document.getElementById(`ing-ac-${rowId}`);
+  if (dd) {
+    dd.innerHTML = '<div class="ac-item" style="color:var(--text-3);cursor:default">⏳ Cargando ingredientes…</div>';
+    dd.style.display = 'block';
+  }
   const all  = await loadIngredientes();
   const q    = query.toLowerCase();
   const hits = all.filter(r =>
     String(r.nombre).toLowerCase().includes(q) ||
-    String(r.categoria).toLowerCase().includes(q)
-  ).slice(0, 7);
+    String(r.categoria).toLowerCase().includes(q) ||
+    String(r.notas || '').toLowerCase().includes(q)
+  ).slice(0, 8);
 
-  if (!hits.length) { hideDropdown(`ing-ac-${rowId}`); return; }
+  if (!hits.length) {
+    if (dd) {
+      const noKey = !CONFIG.scriptUrl;
+      dd.innerHTML = `<div class="ac-item" style="color:var(--text-3);cursor:default;font-size:.78rem">
+        ${noKey
+          ? '⚠ Conecta Google Sheets en ⚙ para buscar ingredientes'
+          : `Sin resultados para "${escHtml(query)}" — ¿agregar nuevo ingrediente?`}
+        </div>`;
+      dd.style.display = 'block';
+    }
+    return;
+  }
 
   showDropdown(
     `ing-ac-${rowId}`,
@@ -2070,36 +2130,57 @@ function selectIngredientFromSheet(rowId, row) {
   if (inp) inp.value = row.nombre;
   hideDropdown(`ing-ac-${rowId}`);
 
-  // Store
-  _rowNutrition[rowId] = { row, factor: 1 };
+  // qty = how many of unidad_comun the user added (e.g. qty=3 means 3 tazas)
+  _rowNutrition[rowId] = { row, qty: 1 };
 
-  // Show portion row
-  const portRow  = document.getElementById(`ing-portion-${rowId}`);
-  const unitLbl  = document.getElementById(`ing-unit-${rowId}`);
-  const calBadge = document.getElementById(`ing-cal-${rowId}`);
+  // Show the portion selector
+  const portRow = document.getElementById(`ing-portion-${rowId}`);
+  const qtyInp  = document.getElementById(`ing-qty-${rowId}`);
   if (portRow) portRow.style.display = 'flex';
-  if (unitLbl) unitLbl.textContent = row.unidad_comun || '100g';
+  if (qtyInp)  qtyInp.value = 1;
 
+  _updateIngLabel(rowId);
   _updateIngBadge(rowId);
   updateTotalsFromResolved();
 }
 
-function changeIngFactor(rowId, delta) {
-  const inp = document.getElementById(`ing-factor-${rowId}`);
+// Update the unit label to show "1 taza (122g)" → "3 tazas (366g)" dynamically
+function _updateIngLabel(rowId) {
+  const entry = _rowNutrition[rowId];
+  if (!entry) return;
+  const unitLbl = document.getElementById(`ing-unit-${rowId}`);
+  if (!unitLbl) return;
+  const { row, qty } = entry;
+  const g   = Math.round((Number(row.cantidad_comun_g) || 100) * qty);
+  const rawUnit = row.unidad_comun || '100g';
+  // Strip any leading number from unidad_comun (e.g. "1 taza" → "taza")
+  const unitWord = rawUnit.replace(/^[\d\/\s\.]+/, '').trim() || rawUnit;
+  // Compose: qty × unitWord (total_g)
+  unitLbl.innerHTML =
+    `<span style="color:var(--text-3)">${qty} × ${rawUnit}</span>` +
+    `<span style="color:var(--text-2);margin-left:.35rem">(${g}g)</span>`;
+}
+
+function changeIngQty(rowId, delta) {
+  const inp = document.getElementById(`ing-qty-${rowId}`);
   if (!inp) return;
   const current = parseFloat(inp.value) || 1;
-  const next    = Math.max(0.25, Math.round((current + delta) * 4) / 4);
+  // Snap to nearest 0.5 after adding delta
+  const next = Math.max(0.5, Math.round((current + delta) * 2) / 2);
   inp.value = next;
-  if (_rowNutrition[rowId]) _rowNutrition[rowId].factor = next;
+  if (_rowNutrition[rowId]) _rowNutrition[rowId].qty = next;
+  _updateIngLabel(rowId);
   _updateIngBadge(rowId);
   updateTotalsFromResolved();
   resetFoodCalc();
 }
 
-function onIngFactorChange(rowId) {
-  const inp = document.getElementById(`ing-factor-${rowId}`);
+function onIngQtyChange(rowId) {
+  const inp = document.getElementById(`ing-qty-${rowId}`);
   if (!inp || !_rowNutrition[rowId]) return;
-  _rowNutrition[rowId].factor = parseFloat(inp.value) || 1;
+  const val = parseFloat(inp.value);
+  _rowNutrition[rowId].qty = isNaN(val) || val < 0.25 ? 0.5 : val;
+  _updateIngLabel(rowId);
   _updateIngBadge(rowId);
   updateTotalsFromResolved();
   resetFoodCalc();
@@ -2109,7 +2190,7 @@ function _updateIngBadge(rowId) {
   const entry    = _rowNutrition[rowId];
   const calBadge = document.getElementById(`ing-cal-${rowId}`);
   if (!entry || !calBadge) return;
-  const cal = calcIngCalories(entry.row, entry.factor);
+  const cal = calcIngCalories(entry.row, entry.qty);
   calBadge.textContent = `${cal} kcal`;
 }
 
@@ -2128,7 +2209,7 @@ function updateTotalsFromResolved() {
 
   const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
   const sum = entries.reduce((s, e) => {
-    const m = calcIngMacros(e.row, e.factor);
+    const m = calcIngMacros(e.row, e.qty != null ? e.qty : (e.factor || 1));
     return {
       calories:              s.calories              + m.calories,
       protein_g:             s.protein_g             + m.protein_g,
@@ -2173,11 +2254,12 @@ async function estimateFoodCalories() {
   }
   const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
   const totalCal = Math.round(
-    entries.reduce((s, e) => s + calcIngCalories(e.row, e.factor), 0) * portions
+    entries.reduce((s, e) => s + calcIngCalories(e.row, e.qty != null ? e.qty : (e.factor||1)), 0) * portions
   );
   const breakdown = entries.map(e => {
-    const cal = calcIngCalories(e.row, e.factor);
-    const g   = Math.round((Number(e.row.cantidad_comun_g) || 100) * e.factor);
+    const qty = e.qty != null ? e.qty : (e.factor || 1);
+    const cal = calcIngCalories(e.row, qty);
+    const g   = Math.round((Number(e.row.cantidad_comun_g) || 100) * qty);
     return `${e.row.nombre} ×${e.factor} (${g}g) — ${cal} kcal`;
   });
   showFoodResult(totalCal, breakdown, 'Sheets');
@@ -2242,7 +2324,7 @@ async function submitFood() {
 
   const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
   const ingStr   = entries.length
-    ? entries.map(e => `${e.factor} × ${e.row.nombre}`).join(', ')
+    ? entries.map(e => `${e.qty != null ? e.qty : (e.factor||1)} × ${e.row.nombre}`).join(', ')
     : lines.join(', ');
 
   const entry = {
@@ -2482,24 +2564,10 @@ function saveCurrentAsRecipe() {
 ═══════════════════════════════════════════════════════════════ */
 
 /* ── EXERCISE AUTOCOMPLETE via /exercises ────────────────────── */
-const _exNameDebounced = debounce(async (q) => {
-  if (!hasApiKey() || q.length < 2) { hideDropdown('exSuggestions'); return; }
-  try {
-    const items = await anFetch(`/exercises?name=${encodeURIComponent(q)}&limit=6`);
-    if (!items.length) { hideDropdown('exSuggestions'); return; }
-    showDropdown('exSuggestions',
-      items.map(ex => ({
-        label: `💪 ${ex.name} <small style="color:var(--text-3)">${ex.type} · ${ex.muscle}</small>`,
-        data: ex
-      })),
-      (item) => selectExercise(item.data)
-    );
-  } catch (_) { hideDropdown('exSuggestions'); }
-}, 420);
-
+// Exercise autocomplete disabled (no external API)
 function onExNameInput(e) {
   resetExCalc();
-  _exNameDebounced(e.target.value.trim());
+  // No-op: exercise names entered freely
 }
 
 function selectExercise(ex) {
@@ -2572,37 +2640,12 @@ async function estimateExCalories() {
   const weight = prof.weight || 70;
   const intensityMult = { 'Baja': 0.80, 'Media': 1.0, 'Alta': 1.25 };
 
-  if (hasApiKey()) {
-    try {
-      const actQuery = `${name}${notes ? ' ' + notes : ''}`;
-      const items    = await anFetch(
-        `/caloriesburned?activity=${encodeURIComponent(actQuery)}&weight_kg=${weight}&duration_minutes=${duration}`
-      );
-      if (!items.length) throw new Error('Sin resultados');
-
-      const base     = items[0].total_calories || 0;
-      const adjusted = Math.round(base * (intensityMult[intensity] || 1));
-      const reasoning = `${items[0].name}: ${base} kcal base × ${intensityMult[intensity] || 1} (${intensity}) = ${adjusted} kcal`;
-
-      showExResult(adjusted, reasoning, 'API Ninjas');
-      label.textContent = '✓ Calculado · edita si deseas corregir';
-
-    } catch (err) {
-      const { met, label: actLabel } = getMET(name, notes, intensity);
-      const burned = Math.round(met * weight * (duration / 60));
-      showExResult(burned,
-        `MET ${met} (${actLabel}, ${intensity}) × ${weight}kg × ${duration}min = ${burned} kcal`,
-        'MET');
-      label.textContent = `✓ Estimado por MET (API: ${err.message})`;
-    }
-  } else {
-    const { met, label: actLabel } = getMET(name, notes, intensity);
-    const burned = Math.round(met * weight * (duration / 60));
-    showExResult(burned,
-      `MET ${met} (${actLabel}, ${intensity}) × ${weight}kg × ${duration / 60}h = ${burned} kcal`,
-      'MET');
-    label.textContent = '✓ Estimado por fórmula MET';
-  }
+  const { met, label: actLabel } = getMET(name, notes, intensity);
+  const burned = Math.round(met * weight * (duration / 60));
+  showExResult(burned,
+    `MET ${met} (${actLabel}, ${intensity}) × ${weight}kg × ${duration / 60}h = ${burned} kcal`,
+    'MET');
+  label.textContent = '✓ Estimado por fórmula MET';
 
   btn.classList.remove('loading');
   btn.disabled = false;
@@ -3562,6 +3605,9 @@ async function init() {
 
   // Bootstrap first ingredient row after DOM is ready
   addIngredientRow('', true);
+
+  // Warm the ingredient/recipe cache so first search is instant
+  if (CONFIG.scriptUrl) { loadIngredientes(); loadRecetario(); }
 
   const prof = state.profiles[state.profile];
   if (!prof.configured) showUnconfiguredBanner();
