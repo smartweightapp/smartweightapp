@@ -1860,13 +1860,17 @@ async function syncTodayEntries(user, date) {
   const data = await apiGet({ action: 'getEntries', user, date: d });
   if (data) {
     if (data.foods) {
-      const normalized = data.foods.map(f => ({ ...f, date: sanitizeDate(f.date) }));
-      const other      = state.foods[user].filter(f => f.date !== d);
+      const normalized = data.foods
+        .map(f => ({ ...f, date: sanitizeDate(f.date) }))
+        .filter(f => !_deletedIds.has(String(f.id)));  // never re-insert deleted entries
+      const other = state.foods[user].filter(f => f.date !== d);
       state.foods[user] = [...other, ...normalized];
     }
     if (data.exercises) {
-      const normalized = data.exercises.map(e => ({ ...e, date: sanitizeDate(e.date) }));
-      const other      = state.exercises[user].filter(e => e.date !== d);
+      const normalized = data.exercises
+        .map(e => ({ ...e, date: sanitizeDate(e.date) }))
+        .filter(e => !_deletedIds.has(String(e.id)));
+      const other = state.exercises[user].filter(e => e.date !== d);
       state.exercises[user] = [...other, ...normalized];
     }
     if (data.measurements) {
@@ -1884,15 +1888,19 @@ async function syncAllEntries(user) {
     const data = await apiGet({ action: 'getAllEntries', user });
     if (data) {
       if (data.foods) {
-        const normalized = data.foods.map(f => ({ ...f, date: sanitizeDate(f.date) }));
-        const sheetsIds  = new Set(normalized.map(f => String(f.id)));
-        const localOnly  = state.foods[user].filter(f => !sheetsIds.has(String(f.id)));
+        const normalized = data.foods
+          .map(f => ({ ...f, date: sanitizeDate(f.date) }))
+          .filter(f => !_deletedIds.has(String(f.id)));
+        const sheetsIds = new Set(normalized.map(f => String(f.id)));
+        const localOnly = state.foods[user].filter(f => !sheetsIds.has(String(f.id)));
         state.foods[user] = [...normalized, ...localOnly];
       }
       if (data.exercises) {
-        const normalized = data.exercises.map(e => ({ ...e, date: sanitizeDate(e.date) }));
-        const sheetsIds  = new Set(normalized.map(e => String(e.id)));
-        const localOnly  = state.exercises[user].filter(e => !sheetsIds.has(String(e.id)));
+        const normalized = data.exercises
+          .map(e => ({ ...e, date: sanitizeDate(e.date) }))
+          .filter(e => !_deletedIds.has(String(e.id)));
+        const sheetsIds = new Set(normalized.map(e => String(e.id)));
+        const localOnly = state.exercises[user].filter(e => !sheetsIds.has(String(e.id)));
         state.exercises[user] = [...normalized, ...localOnly];
       }
       saveEntriesToStorage(user);
@@ -2880,20 +2888,26 @@ async function submitExercise() {
 }
 
 /* ── DELETE ENTRIES ─────────────────────────────────────────── */
-async function deleteFood(id) {
-  state.foods[state.profile] = state.foods[state.profile].filter(f => f.id !== id);
+// Track locally-deleted IDs so background syncs never re-insert them
+const _deletedIds = new Set();
+
+function deleteFood(id) {
+  _deletedIds.add(String(id));
+  state.foods[state.profile] = state.foods[state.profile].filter(f => String(f.id) !== String(id));
   saveEntriesToStorage(state.profile);
-  if (CONFIG.scriptUrl) await pushDelete('food', state.profile, id);
   renderAll();
   showToast('Entrada eliminada', 'success');
+  // Fire-and-forget — UI already updated
+  if (CONFIG.scriptUrl) pushDelete('food', state.profile, id);
 }
 
-async function deleteExercise(id) {
-  state.exercises[state.profile] = state.exercises[state.profile].filter(e => e.id !== id);
+function deleteExercise(id) {
+  _deletedIds.add(String(id));
+  state.exercises[state.profile] = state.exercises[state.profile].filter(e => String(e.id) !== String(id));
   saveEntriesToStorage(state.profile);
-  if (CONFIG.scriptUrl) await pushDelete('exercise', state.profile, id);
   renderAll();
   showToast('Ejercicio eliminado', 'success');
+  if (CONFIG.scriptUrl) pushDelete('exercise', state.profile, id);
 }
 
 /* ── RENDER ALL ─────────────────────────────────────────────── */
