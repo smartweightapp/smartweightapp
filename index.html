@@ -2016,7 +2016,7 @@ function hideDropdown(id) {
 }
 
 // In-memory cache so we don't hit Sheets on every keystroke
-const _cache = { ingredientes: null, recetario: null };
+const _cache = { ingredientes: null, recetario: null, productos: null };
 
 /* ── LOCAL INGREDIENT FALLBACK ─────────────────────────────────
    Used when Sheets is not connected or returns empty.
@@ -2134,6 +2134,54 @@ async function loadIngredientes() {
   return LOCAL_INGREDIENTES;
 }
 
+// Local product fallback — same subset as Sheets Productos
+// Full data lives in Sheets; this covers the most searched items offline
+const LOCAL_PRODUCTOS = [
+  // Frituras
+  {id:'p020',categoria:'Fritura',marca:'Sabritas',nombre:'Chips Fuego chica',     presentacion:'1 bolsa (28g)', calorias:140,proteina_g:2.0,carbs_g:17.0,grasa_g:7.0,  fibra_g:1.0,azucar_g:0.0,porcion_g:28 },
+  {id:'p021',categoria:'Fritura',marca:'Sabritas',nombre:'Chips Fuego mediana',   presentacion:'1 bolsa (56g)', calorias:280,proteina_g:4.0,carbs_g:34.0,grasa_g:14.0, fibra_g:2.0,azucar_g:0.0,porcion_g:56 },
+  {id:'p022',categoria:'Fritura',marca:'Sabritas',nombre:'Chips Fuego grande',    presentacion:'1 bolsa (113g)',calorias:565,proteina_g:8.0,carbs_g:69.0,grasa_g:28.0, fibra_g:4.0,azucar_g:0.0,porcion_g:113},
+  {id:'p029',categoria:'Fritura',marca:'Barcel',  nombre:'Takis Fuego chica',     presentacion:'1 bolsa (28g)', calorias:140,proteina_g:2.0,carbs_g:18.0,grasa_g:7.0,  fibra_g:1.0,azucar_g:1.0,porcion_g:28 },
+  {id:'p030',categoria:'Fritura',marca:'Barcel',  nombre:'Takis Fuego grande',    presentacion:'1 bolsa (56g)', calorias:280,proteina_g:4.0,carbs_g:36.0,grasa_g:14.0, fibra_g:2.0,azucar_g:2.0,porcion_g:56 },
+  {id:'p027',categoria:'Fritura',marca:'Sabritas',nombre:'Cheetos Torciditos',    presentacion:'1 bolsa (28g)', calorias:150,proteina_g:2.0,carbs_g:14.0,grasa_g:9.5,  fibra_g:0.5,azucar_g:1.5,porcion_g:28 },
+  {id:'p034',categoria:'Fritura',marca:'Pepsico', nombre:'Doritos Nacho',         presentacion:'1 bolsa (28g)', calorias:140,proteina_g:2.0,carbs_g:18.0,grasa_g:6.5,  fibra_g:1.5,azucar_g:0.5,porcion_g:28 },
+  // Dulces
+  {id:'p001',categoria:'Dulce',  marca:'Vuala',   nombre:'Vuala Original',        presentacion:'1 pieza (30g)', calorias:130,proteina_g:2.0,carbs_g:19.0,grasa_g:5.0,  fibra_g:0.5,azucar_g:15.0,porcion_g:30},
+  {id:'p003',categoria:'Dulce',  marca:'Tixti',   nombre:'Tixtix Original',       presentacion:'1 bolsa (30g)', calorias:140,proteina_g:2.0,carbs_g:22.0,grasa_g:5.0,  fibra_g:1.0,azucar_g:10.0,porcion_g:30},
+  {id:'p005',categoria:'Dulce',  marca:'Ferrero', nombre:'Kinder Bueno',          presentacion:'1 barra (43g)', calorias:230,proteina_g:3.5,carbs_g:24.0,grasa_g:14.0, fibra_g:0.5,azucar_g:20.0,porcion_g:43},
+  {id:'p006',categoria:'Dulce',  marca:'Ferrero', nombre:'Kinder Bueno White',    presentacion:'1 barra (39g)', calorias:220,proteina_g:3.0,carbs_g:23.5,grasa_g:13.5, fibra_g:0.0,azucar_g:21.0,porcion_g:39},
+  {id:'p009',categoria:'Dulce',  marca:'Nestle',  nombre:'KitKat 4 dedos',        presentacion:'1 barra (45g)', calorias:226,proteina_g:3.0,carbs_g:29.0,grasa_g:11.5, fibra_g:0.5,azucar_g:24.0,porcion_g:45},
+  {id:'p011',categoria:'Dulce',  marca:'Mars',    nombre:'Snickers',              presentacion:'1 barra (52g)', calorias:250,proteina_g:4.3,carbs_g:32.7,grasa_g:12.1, fibra_g:1.1,azucar_g:27.0,porcion_g:52},
+  {id:'p043',categoria:'Galleta',marca:'Marinela',nombre:'Gansito',               presentacion:'1 pieza (42g)', calorias:170,proteina_g:2.5,carbs_g:27.0,grasa_g:6.0,  fibra_g:0.5,azucar_g:16.0,porcion_g:42},
+  {id:'p044',categoria:'Galleta',marca:'Marinela',nombre:'Pinguinos',             presentacion:'1 pieza (39g)', calorias:160,proteina_g:2.0,carbs_g:24.5,grasa_g:6.5,  fibra_g:0.5,azucar_g:14.0,porcion_g:39},
+  // Bebidas
+  {id:'p050',categoria:'Bebida', marca:'Coca-Cola',nombre:'Coca-Cola Regular 355ml',presentacion:'1 lata',     calorias:140,proteina_g:0.0,carbs_g:39.0,grasa_g:0.0,  fibra_g:0.0,azucar_g:39.0,porcion_g:355},
+  {id:'p053',categoria:'Bebida', marca:'Coca-Cola',nombre:'Coca-Cola Light 355ml', presentacion:'1 lata',      calorias:1,  proteina_g:0.0,carbs_g:0.2, grasa_g:0.0,  fibra_g:0.0,azucar_g:0.0, porcion_g:355},
+  {id:'p055',categoria:'Bebida', marca:'Coca-Cola',nombre:'Coca-Cola Sin Azucar',  presentacion:'1 lata 355ml',calorias:1,  proteina_g:0.0,carbs_g:0.0, grasa_g:0.0,  fibra_g:0.0,azucar_g:0.0, porcion_g:355},
+  {id:'p063',categoria:'Bebida', marca:'Monster', nombre:'Monster Energy 473ml',   presentacion:'1 lata',      calorias:190,proteina_g:1.0,carbs_g:46.0,grasa_g:0.0,  fibra_g:0.0,azucar_g:43.0,porcion_g:473},
+  // Comida Rapida
+  {id:'p070',categoria:'Comida Rapida',marca:"Carl's Jr",nombre:"Famous Star con Queso",presentacion:'1 pieza',calorias:700,proteina_g:34.0,carbs_g:53.0,grasa_g:38.0,fibra_g:2.0,azucar_g:9.0,porcion_g:250},
+  {id:'p085',categoria:'Comida Rapida',marca:'McDonalds',nombre:'Big Mac',         presentacion:'1 pieza',     calorias:550,proteina_g:25.0,carbs_g:46.0,grasa_g:30.0, fibra_g:3.0,azucar_g:9.0, porcion_g:216},
+  {id:'p088',categoria:'Comida Rapida',marca:'McDonalds',nombre:'Papas Medianas',  presentacion:'1 porcion',   calorias:340,proteina_g:4.0, carbs_g:44.0,grasa_g:16.0, fibra_g:4.0,azucar_g:0.0, porcion_g:125},
+  // Comida China
+  {id:'p105',categoria:'Comida China',marca:'General',nombre:'Chow Mein de pollo',presentacion:'1 taza (200g)',calorias:250,proteina_g:15.0,carbs_g:30.0,grasa_g:8.0, fibra_g:2.0,azucar_g:3.0, porcion_g:200},
+  {id:'p106',categoria:'Comida China',marca:'General',nombre:'Fried Rice',         presentacion:'1 taza (198g)',calorias:330,proteina_g:10.0,carbs_g:53.0,grasa_g:8.0, fibra_g:2.0,azucar_g:2.0, porcion_g:198},
+  {id:'p108',categoria:'Comida China',marca:'General',nombre:'Pollo General Tso',  presentacion:'1 porcion',   calorias:430,proteina_g:22.0,carbs_g:45.0,grasa_g:18.0, fibra_g:1.5,azucar_g:15.0,porcion_g:200},
+];
+
+async function loadProductos() {
+  if (_cache.productos && _cache.productos.length) return _cache.productos;
+  if (CONFIG.scriptUrl) {
+    try {
+      const data  = await apiGet({ action: 'getProductos' });
+      const items = data && data.items ? data.items : [];
+      if (items.length) { _cache.productos = items; return items; }
+    } catch (e) { console.warn('loadProductos Sheets error:', e.message); }
+  }
+  _cache.productos = LOCAL_PRODUCTOS;
+  return LOCAL_PRODUCTOS;
+}
+
 async function loadRecetario() {
   if (_cache.recetario && _cache.recetario.length) return _cache.recetario;
   if (!CONFIG.scriptUrl) return [];
@@ -2157,15 +2205,23 @@ function invalidateCache() {
 // Sheets stores cal/100g + proteina/carbs/grasa per ingredient.
 // Factor = portions entered by user relative to unidad_comun.
 function calcIngCalories(row, factor) {
+  // Products store exact kcal per presentacion — multiply by qty only
+  if (row._fixedCal != null) return Math.round(row._fixedCal * factor);
   const g   = (Number(row.cantidad_comun_g) || 100) * factor;
   const cal = Number(row.calorias_100g) || 0;
   return Math.round((cal / 100) * g);
 }
 
 function calcIngMacros(row, factor) {
-  const g = (Number(row.cantidad_comun_g) || 100) * factor;
+  const g = row._fixedCal != null
+    ? factor  // for products: factor is number of units, g-multiplier = 1
+    : (Number(row.cantidad_comun_g) || 100) * factor / 100;
+  const scale = row._fixedCal != null ? factor : (Number(row.cantidad_comun_g) || 100) * factor / 100;
+  const g2 = (Number(row.cantidad_comun_g) || 100) * factor;
   return {
-    calories:              Math.round((Number(row.calorias_100g) || 0) / 100 * g),
+    calories:              row._fixedCal != null
+                             ? Math.round(row._fixedCal * factor)
+                             : Math.round((Number(row.calorias_100g) || 0) / 100 * g2),
     protein_g:             Math.round((Number(row.proteina_g)    || 0) / 100 * g * 10) / 10,
     carbohydrates_total_g: Math.round((Number(row.carbs_g)       || 0) / 100 * g * 10) / 10,
     fat_total_g:           Math.round((Number(row.grasa_g)       || 0) / 100 * g * 10) / 10,
@@ -2257,19 +2313,42 @@ function onIngredientInput(e, rowId) {
 
 async function _searchIngSheet(rowId, query) {
   if (query.length < 1) { hideDropdown(`ing-ac-${rowId}`); return; }
-  // Show loading indicator while fetching
   const dd = document.getElementById(`ing-ac-${rowId}`);
   if (dd) {
-    dd.innerHTML = '<div class="ac-item" style="color:var(--text-3);cursor:default">⏳ Cargando ingredientes…</div>';
+    dd.innerHTML = '<div class="ac-item" style="color:var(--text-3);cursor:default">⏳ Buscando…</div>';
     dd.style.display = 'block';
   }
-  const all  = await loadIngredientes();
-  const q    = query.toLowerCase();
-  const hits = all.filter(r =>
+  const q = query.toLowerCase();
+
+  // Search both Ingredientes and Productos in parallel
+  const [ings, prods] = await Promise.all([loadIngredientes(), loadProductos()]);
+
+  // Ingredientes matches (base foods)
+  const ingHits = ings.filter(r =>
     String(r.nombre).toLowerCase().includes(q) ||
-    String(r.categoria).toLowerCase().includes(q) ||
-    String(r.notas || '').toLowerCase().includes(q)
-  ).slice(0, 8);
+    String(r.categoria).toLowerCase().includes(q)
+  ).slice(0, 5).map(r => ({
+    label: `<span style="color:var(--text-2);font-size:.65rem">${r.categoria}</span> ` +
+           `<strong>${r.nombre}</strong> ` +
+           `<span style="color:var(--lime);font-size:.72rem">${r.calorias_100g} kcal/100g</span>` +
+           `<span style="color:var(--text-3);font-size:.65rem"> · ${r.unidad_comun||''}</span>`,
+    data: { _type: 'ing', ...r }
+  }));
+
+  // Productos matches (packaged/fast food)
+  const prodHits = prods.filter(r =>
+    String(r.nombre).toLowerCase().includes(q) ||
+    String(r.marca  || '').toLowerCase().includes(q) ||
+    String(r.categoria).toLowerCase().includes(q)
+  ).slice(0, 5).map(r => ({
+    label: `<span style="color:var(--amber);font-size:.65rem">${r.marca || r.categoria}</span> ` +
+           `<strong>${r.nombre}</strong> ` +
+           `<span style="color:var(--lime);font-size:.72rem">${r.calorias} kcal</span>` +
+           `<span style="color:var(--text-3);font-size:.65rem"> · ${r.presentacion||''}</span>`,
+    data: { _type: 'prod', ...r }
+  }));
+
+  const hits = [...ingHits, ...prodHits].slice(0, 8);
 
   if (!hits.length) {
     if (dd) {
@@ -2299,13 +2378,29 @@ async function _searchIngSheet(rowId, query) {
 
 function selectIngredientFromSheet(rowId, row) {
   const inp = document.getElementById(`ing-${rowId}`);
-  if (inp) inp.value = row.nombre;
+  if (inp) inp.value = row.marca ? `${row.marca} ${row.nombre}` : row.nombre;
   hideDropdown(`ing-ac-${rowId}`);
 
-  // qty = how many of unidad_comun the user added (e.g. qty=3 means 3 tazas)
-  _rowNutrition[rowId] = { row, qty: 1 };
+  // Normalize to common schema regardless of source type
+  const isProduct = row._type === 'prod';
+  const normalized = isProduct
+    ? {
+        // Map Productos fields to Ingredientes schema
+        nombre:          `${row.marca || ''} ${row.nombre}`.trim(),
+        calorias_100g:   row.calorias,   // already per porcion
+        proteina_g:      row.proteina_g || 0,
+        carbs_g:         row.carbs_g    || 0,
+        grasa_g:         row.grasa_g    || 0,
+        fibra_g:         row.fibra_g    || 0,
+        unidad_comun:    row.presentacion || '1 porcion',
+        cantidad_comun_g: row.porcion_g  || 100,
+        _isProduct:      true,
+        _fixedCal:       row.calorias,   // exact kcal for this porcion
+      }
+    : row;
 
-  // Show the portion selector
+  _rowNutrition[rowId] = { row: normalized, qty: 1 };
+
   const portRow = document.getElementById(`ing-portion-${rowId}`);
   const qtyInp  = document.getElementById(`ing-qty-${rowId}`);
   if (portRow) portRow.style.display = 'flex';
