@@ -696,6 +696,57 @@
     .breakdown-total-row .calorie-result-input { font-size: 1.6rem !important; text-align: right; }
 
 
+
+    /* ── INGREDIENT ROW WITH PORTION ──────────────────────────── */
+    .ingredient-row-wrap { display: flex; flex-direction: column; margin-bottom: .45rem; }
+    .ing-portion-row {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .3rem .35rem .3rem 0;
+      margin-left: .25rem;
+      flex-wrap: wrap;
+    }
+    .ing-unit-label {
+      font-size: .72rem; color: var(--text-2); flex: 1; min-width: 80px;
+      font-style: italic;
+    }
+    .ing-factor-wrap {
+      display: flex; align-items: center; gap: .2rem;
+    }
+    .ing-factor-btn {
+      width: 26px; height: 26px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--bg-card);
+      font-size: 1rem; font-weight: 700; color: var(--text-2);
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--transition); cursor: pointer; line-height: 1;
+    }
+    .ing-factor-btn:hover { border-color: var(--border-act); color: var(--lime); }
+    .ing-factor-input {
+      width: 48px !important; text-align: center !important;
+      padding: .3rem .25rem !important; font-size: .85rem !important;
+    }
+
+    /* ── FORM TITLE ROW ────────────────────────────────────────── */
+    .form-title-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .5rem;
+    }
+    .form-title-actions { display: flex; gap: .4rem; }
+    .btn-pill {
+      padding: .3rem .75rem;
+      border: 1px solid var(--border-act);
+      border-radius: 50px;
+      font-size: .72rem; font-weight: 700;
+      color: var(--lime); background: var(--lime-dim);
+      cursor: pointer; transition: all var(--transition);
+    }
+    .btn-pill:hover { background: rgba(181,255,77,.25); }
+
+    /* ── MODAL TITLE ROW ───────────────────────────────────────── */
+    .modal-title-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .75rem;
+    }
+
     /* ── AUTOCOMPLETE DROPDOWN ─────────────────────────────────── */
     .ac-dropdown {
       position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 200;
@@ -1093,15 +1144,18 @@
   <!-- ── COMIDAS TAB ─────────────────────────────────────────────── -->
   <div class="tab-content" id="content-comidas">
     <div class="form-card">
-      <div class="form-title">➕ Registrar Comida</div>
-
-      <div class="form-group" style="margin-bottom:.6rem">
-        <label>Nombre del plato <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
-        <input type="text" id="foodName" placeholder="Ej: Hamburguesa, Almuerzo, Cena del martes"
-          autocomplete="off" />
+      <div class="form-title-row">
+        <span class="form-title" style="margin-bottom:0">➕ Registrar Comida</span>
+        <div class="form-title-actions">
+          <button class="btn-pill" onclick="openRecetarioModal()" title="Cargar receta completa">📚 Recetario</button>
+        </div>
       </div>
 
-      <div class="form-grid-2" style="margin-bottom:.85rem;">
+      <div class="form-grid-2" style="margin-top:.75rem;margin-bottom:.75rem">
+        <div class="form-group" style="margin-bottom:0">
+          <label>Nombre del plato <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+          <input type="text" id="foodName" placeholder="Ej: Almuerzo del martes" autocomplete="off" />
+        </div>
         <div class="form-group" style="margin-bottom:0">
           <label>Momento</label>
           <select id="foodMeal">
@@ -1111,24 +1165,17 @@
             <option value="Merienda">🍎 Merienda</option>
           </select>
         </div>
-        <div class="form-group" style="margin-bottom:0">
-          <label>Porciones</label>
-          <input type="number" id="foodPortions" value="1" min="0.25" step="0.25"
-            oninput="onPortionsChange()" />
-        </div>
       </div>
 
-      <!-- Ingredient list with per-row autocomplete -->
+      <!-- Ingredient rows (Sheets-backed search) -->
       <div class="ingredients-header">
         <span class="ingredients-label">Ingredientes</span>
-        <span class="ingredients-hint">Cantidad + alimento, ej: "2 white bread slices"</span>
+        <button class="btn-add-small" onclick="openAddIngredientModal()" style="font-size:.65rem">+ Nuevo ingrediente</button>
       </div>
       <div id="ingredientRows"></div>
-      <button class="btn-add-ingredient" onclick="addIngredientRow()">
-        + Agregar ingrediente
-      </button>
+      <button class="btn-add-ingredient" onclick="addIngredientRow()">+ Agregar ingrediente</button>
 
-      <!-- Macros summary — shown after any item is resolved -->
+      <!-- Macros bar -->
       <div id="macrosSummary" style="display:none" class="macros-bar">
         <div class="macro-chip"><span class="macro-val" id="mProtein">0</span><span class="macro-lbl">g Prot</span></div>
         <div class="macro-chip"><span class="macro-val" id="mCarbs">0</span><span class="macro-lbl">g Carbs</span></div>
@@ -1136,33 +1183,25 @@
         <div class="macro-chip"><span class="macro-val" id="mFiber">0</span><span class="macro-lbl">g Fibra</span></div>
       </div>
 
-      <!-- Estimate button -->
-      <button class="btn-estimate" id="btnEstimateFood" onclick="estimateFoodCalories()">
-        <span class="btn-estimate-icon">✦</span>
-        <span id="btnEstimateFoodLabel">Calcular calorías</span>
-      </button>
-
-      <!-- Breakdown list — hidden until estimated -->
+      <!-- Breakdown & total -->
       <div id="foodBreakdownWrap" style="display:none">
         <div class="breakdown-list" id="foodBreakdownList"></div>
       </div>
 
-      <!-- Calorie total — always visible so user can type manually or see estimate -->
       <div class="calorie-always-row">
         <div class="calorie-always-left">
           <span class="calorie-always-label">Total kcal</span>
-          <span class="calorie-result-badge" id="foodCalBadge" style="display:none">API Ninjas</span>
+          <span class="calorie-result-badge" id="foodCalBadge" style="display:none">Sheets</span>
         </div>
         <div class="calorie-always-input-wrap">
           <input type="number" id="foodCalories" class="calorie-result-input"
-            min="0" placeholder="0 — escribe o calcula →"
+            min="0" placeholder="0"
             oninput="onFoodCaloriesInput()" />
           <span class="calorie-result-unit">kcal</span>
         </div>
       </div>
 
-      <button class="btn-primary" id="btnSaveFood" onclick="submitFood()"
-        style="margin-top:.75rem">
+      <button class="btn-primary" id="btnSaveFood" onclick="submitFood()" style="margin-top:.75rem">
         Guardar comida
       </button>
     </div>
@@ -1170,24 +1209,8 @@
     <!-- ── RECETARIO PANEL ─────────────────────────────────────── -->
     <div class="section-header" style="margin-top:1.5rem">
       <span class="section-title">Registros del día</span>
-      <button class="btn-add-small" onclick="toggleRecetario()">
-        📚 Recetario
-      </button>
+      <button class="btn-add-small" onclick="openRecetarioModal()">📚 Recetario</button>
     </div>
-
-    <!-- Recetario drawer — hidden by default -->
-    <div id="recetarioPanel" style="display:none" class="recetario-panel">
-      <div class="recetario-header">
-        <span class="recetario-title">📚 Mis Recetas Guardadas</span>
-        <button class="btn-add-small" onclick="saveCurrentAsRecipe()">+ Guardar actual</button>
-      </div>
-      <div class="recetario-list" id="recetarioList">
-        <div class="empty-state" style="padding:1rem">
-          <div>Sin recetas guardadas — registra una comida y guárdala aquí</div>
-        </div>
-      </div>
-    </div>
-
     <div class="log-list" id="todayFoodList"></div>
   </div>
 
@@ -1443,6 +1466,171 @@
   </div>
 </div>
 
+<!-- ── RECETARIO MODAL ───────────────────────────────────────── -->
+<div class="modal-overlay" id="recetarioModal">
+  <div class="modal" style="max-height:88vh">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeRecetarioModal()">✕</button>
+
+    <div class="modal-title-row">
+      <div class="modal-title" style="margin-bottom:0">📚 Recetario</div>
+      <button class="btn-add-small" onclick="openAddRecipeModal()">+ Nueva receta</button>
+    </div>
+
+    <!-- Category tabs -->
+    <div class="period-selector" style="padding:.5rem 0 .75rem">
+      <button class="period-btn active" id="rcat-all"       onclick="setRecipeCategory('all')">Todo</button>
+      <button class="period-btn"        id="rcat-Desayuno"  onclick="setRecipeCategory('Desayuno')">Desayuno</button>
+      <button class="period-btn"        id="rcat-Almuerzo"  onclick="setRecipeCategory('Almuerzo')">Almuerzo</button>
+      <button class="period-btn"        id="rcat-Cena"      onclick="setRecipeCategory('Cena')">Cena</button>
+      <button class="period-btn"        id="rcat-Merienda"  onclick="setRecipeCategory('Merienda')">Merienda</button>
+    </div>
+
+    <!-- Search -->
+    <div class="form-group" style="margin-bottom:.75rem">
+      <input type="text" id="recipeSearch" placeholder="Buscar receta…"
+        oninput="renderRecetarioModal()" style="font-size:.85rem" />
+    </div>
+
+    <div id="recetarioModalList" style="overflow-y:auto;max-height:52vh"></div>
+  </div>
+</div>
+
+<!-- ── ADD INGREDIENT MODAL ───────────────────────────────────── -->
+<div class="modal-overlay" id="addIngredientModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeAddIngredientModal()">✕</button>
+    <div class="modal-title">🥦 Nuevo Ingrediente</div>
+    <div class="config-banner" style="font-size:.78rem">
+      Se guardará en la hoja <strong>Ingredientes</strong> de tu Google Sheet y estará disponible para todos los perfiles.
+    </div>
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label>Categoría</label>
+        <select id="ni_categoria">
+          <option value="Verdura">Verdura</option>
+          <option value="Fruta">Fruta</option>
+          <option value="Proteina">Proteína</option>
+          <option value="Legumbre">Legumbre</option>
+          <option value="Lacteo">Lácteo</option>
+          <option value="Cereal">Cereal/Grano</option>
+          <option value="Grasa">Grasa/Nuez</option>
+          <option value="Condimento">Condimento</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="ni_nombre" placeholder="Ej: Nopal cocido" />
+      </div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label>Calorías / 100g</label>
+        <input type="number" id="ni_cal" placeholder="16" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Proteína / 100g (g)</label>
+        <input type="number" id="ni_prot" placeholder="1.3" step="0.1" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Carbs / 100g (g)</label>
+        <input type="number" id="ni_carbs" placeholder="3.3" step="0.1" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Grasa / 100g (g)</label>
+        <input type="number" id="ni_grasa" placeholder="0.1" step="0.1" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Fibra / 100g (g)</label>
+        <input type="number" id="ni_fibra" placeholder="2.2" step="0.1" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Gramos por unidad común</label>
+        <input type="number" id="ni_gramos_unidad" placeholder="86" min="0" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Unidad común</label>
+      <input type="text" id="ni_unidad" placeholder="Ej: 1 nopal mediano, 1 taza, 1 pieza" />
+    </div>
+    <div class="form-group">
+      <label>Notas</label>
+      <input type="text" id="ni_notas" placeholder="Ej: Cocido en agua sin sal" />
+    </div>
+    <button class="btn-primary" onclick="saveNewIngredient()">Guardar en Sheets</button>
+  </div>
+</div>
+
+<!-- ── ADD RECIPE MODAL ────────────────────────────────────────── -->
+<div class="modal-overlay" id="addRecipeModal">
+  <div class="modal" style="max-height:90vh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeAddRecipeModal()">✕</button>
+    <div class="modal-title">🍳 Nueva Receta</div>
+    <div class="config-banner" style="font-size:.78rem">
+      Se guardará en la hoja <strong>Recetario</strong> y estará disponible para todos los perfiles.
+    </div>
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="nr_nombre" placeholder="Ej: Avena con mango" />
+      </div>
+      <div class="form-group">
+        <label>Categoría / Momento</label>
+        <select id="nr_meal">
+          <option value="Desayuno">🌅 Desayuno</option>
+          <option value="Almuerzo">☀️ Almuerzo</option>
+          <option value="Cena">🌙 Cena</option>
+          <option value="Merienda">🍎 Merienda</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Calorías totales (kcal)</label>
+        <input type="number" id="nr_cal" placeholder="280" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Tiempo preparación (min)</label>
+        <input type="number" id="nr_tiempo" placeholder="15" min="1" />
+      </div>
+      <div class="form-group">
+        <label>Proteína (g)</label>
+        <input type="number" id="nr_prot" placeholder="9" step="0.1" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Carbs (g)</label>
+        <input type="number" id="nr_carbs" placeholder="48" step="0.1" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Grasa (g)</label>
+        <input type="number" id="nr_grasa" placeholder="5" step="0.1" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Porciones</label>
+        <input type="number" id="nr_porciones" placeholder="1" min="1" value="1" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Ingredientes (separados por coma)</label>
+      <textarea id="nr_ingredientes" rows="3"
+        placeholder="1/2 taza avena, 1 taza leche, 1/2 mango en cubos, 1 tsp miel"
+        style="resize:vertical"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Instrucciones</label>
+      <textarea id="nr_instrucciones" rows="3"
+        placeholder="Hervir leche, agregar avena revolviendo 5 min, decorar con mango y miel."
+        style="resize:vertical"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Notas</label>
+      <input type="text" id="nr_notas" placeholder="Ej: Preparar la noche anterior" />
+    </div>
+    <button class="btn-primary" onclick="saveNewRecipe()">Guardar en Sheets</button>
+  </div>
+</div>
+
 <!-- ── TOAST ──────────────────────────────────────────────────── -->
 <div id="toast"></div>
 
@@ -1453,13 +1641,10 @@
 /* ── CONFIGURATION ──────────────────────────────────────────── */
 // Tokens replaced at build-time by GitHub Actions — never committed to git.
 const _BAKED_URL    = '__APPS_SCRIPT_URL__';
-const _AN_KEY       = '__API_NINJAS_KEY__';
-const _IS_CI        = !_BAKED_URL.startsWith('__');
-const _HAS_AN       = !_AN_KEY.startsWith('__');
+const _IS_CI = !_BAKED_URL.startsWith('__');
 
 const CONFIG = {
-  scriptUrl:       _IS_CI   ? _BAKED_URL : (localStorage.getItem('vita_scriptUrl') || ''),
-  apiNinjasKey:    _HAS_AN  ? _AN_KEY    : (localStorage.getItem('vita_anKey') || ''),
+  scriptUrl:       _IS_CI ? _BAKED_URL : (localStorage.getItem('vita_scriptUrl') || ''),
   isPreconfigured: _IS_CI,
   timeout:         8000
 };
@@ -1725,120 +1910,96 @@ function switchTab(tab) {
   }
 }
 
-/* ── CLAUDE API HELPER ───────────────────────────────────────── */
-/* ── API NINJAS HELPERS ─────────────────────────────────────── */
-// API Ninjas: https://api-ninjas.com — single key, CORS enabled.
-// Token injected at build-time from GitHub Secrets (API_NINJAS_KEY).
-// Same X-Api-Key header used for all four endpoints.
-
-const AN_BASE = 'https://api.api-ninjas.com/v1';
-
-function hasApiKey() { return !!CONFIG.apiNinjasKey; }
-
-/**
- * Calculate calories from the free-tier macro fields returned by /v1/nutrition.
- *
- * The API marks calories and protein_g as premium-only (returns a string).
- * We calculate from what IS available using Atwater factors:
- *   fat       → 9 kcal/g
- *   net carbs → 4 kcal/g  (carbohydrates_total_g − fiber_g)
- *   fiber     → 2 kcal/g  (partially fermentable, ~2 kcal/g average)
- *
- * Protein is intentionally excluded from the estimate because guessing it
- * from mass balance produces large errors for high-water foods (yogurt, fruit).
- * The result is a slight undercount for protein-dense foods (meat, eggs) but
- * accurate for carb/fat-dominant foods.
- *
- * @param {object} food  — single item from /v1/nutrition response
- * @param {number} [multiplier=1] — scale for portions
- * @returns {number}  estimated kcal, rounded
- */
-function nutriCalories(food, multiplier = 1) {
-  // Use real value if API returned a number (premium account)
-  const rawCal = food.calories;
-  if (typeof rawCal === 'number' && rawCal > 0) return Math.round(rawCal * multiplier);
-
-  const fat   = Number(food.fat_total_g)           || 0;
-  const carbs = Number(food.carbohydrates_total_g) || 0;
-  const fiber = Number(food.fiber_g)               || 0;
-
-  // Use protein if available (premium), otherwise skip it
-  const rawProt = food.protein_g;
-  const protein = (typeof rawProt === 'number' && rawProt >= 0) ? rawProt : 0;
-
-  // Atwater: fat*9 + net_carbs*4 + fiber*2 + protein*4
-  const netCarbs = Math.max(0, carbs - fiber);
-  const kcal     = fat * 9 + netCarbs * 4 + fiber * 2 + protein * 4;
-  return Math.round(Math.max(0, kcal) * multiplier);
-}
-
-async function anFetch(path) {
-  const res = await fetch(AN_BASE + path, {
-    headers: { 'X-Api-Key': CONFIG.apiNinjasKey }
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
-  return res.json();
-}
-
-/* ── DEBOUNCE UTIL ───────────────────────────────────────────── */
-function debounce(fn, ms) {
-  let t;
-  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-}
-
-/* ── AUTOCOMPLETE DROPDOWN ───────────────────────────────────── */
-function showDropdown(dropdownId, items, onSelect) {
-  const el = document.getElementById(dropdownId);
-  if (!el) return;
-  if (!items.length) { el.style.display = 'none'; return; }
-  el.innerHTML = items.map((item, i) =>
-    `<div class="ac-item" data-idx="${i}">${item.label}</div>`
-  ).join('');
-  el.style.display = 'block';
-  el.querySelectorAll('.ac-item').forEach((row, i) => {
-    row.addEventListener('mousedown', (e) => {
-      e.preventDefault();  // prevent blur before click
-      onSelect(items[i]);
-      el.style.display = 'none';
-    });
-  });
-}
-
-function hideDropdown(id) {
-  const el = document.getElementById(id);
-  if (el) el.style.display = 'none';
-}
-
 /* ═══════════════════════════════════════════════════════════════
-   FOOD — INGREDIENT ROWS + NUTRITION API
+   INGREDIENTES + RECETARIO  —  Sheets-backed, shared across profiles
 ═══════════════════════════════════════════════════════════════ */
 
-/* ── INGREDIENT ROWS ─────────────────────────────────────────── */
+// In-memory cache so we don't hit Sheets on every keystroke
+const _cache = { ingredientes: null, recetario: null };
+
+async function loadIngredientes() {
+  if (_cache.ingredientes) return _cache.ingredientes;
+  if (!CONFIG.scriptUrl) return [];
+  try {
+    const data = await apiGet({ action: 'getIngredientes' });
+    _cache.ingredientes = data.items || [];
+  } catch (_) { _cache.ingredientes = []; }
+  return _cache.ingredientes;
+}
+
+async function loadRecetario() {
+  if (_cache.recetario) return _cache.recetario;
+  if (!CONFIG.scriptUrl) return [];
+  try {
+    const data = await apiGet({ action: 'getRecetario' });
+    _cache.recetario = data.items || [];
+  } catch (_) { _cache.recetario = []; }
+  return _cache.recetario;
+}
+
+function invalidateCache() {
+  _cache.ingredientes = null;
+  _cache.recetario    = null;
+}
+
+/* ── CALCULATE CALORIES FROM SHEETS ROW ─────────────────────── */
+// Sheets stores cal/100g + proteina/carbs/grasa per ingredient.
+// Factor = portions entered by user relative to unidad_comun.
+function calcIngCalories(row, factor) {
+  const g   = (Number(row.cantidad_comun_g) || 100) * factor;
+  const cal = Number(row.calorias_100g) || 0;
+  return Math.round((cal / 100) * g);
+}
+
+function calcIngMacros(row, factor) {
+  const g = (Number(row.cantidad_comun_g) || 100) * factor;
+  return {
+    calories:              Math.round((Number(row.calorias_100g) || 0) / 100 * g),
+    protein_g:             Math.round((Number(row.proteina_g)    || 0) / 100 * g * 10) / 10,
+    carbohydrates_total_g: Math.round((Number(row.carbs_g)       || 0) / 100 * g * 10) / 10,
+    fat_total_g:           Math.round((Number(row.grasa_g)       || 0) / 100 * g * 10) / 10,
+    fiber_g:               Math.round((Number(row.fibra_g)       || 0) / 100 * g * 10) / 10,
+  };
+}
+
+/* ── INGREDIENT ROW with Sheets autocomplete ─────────────────── */
 let _ingredientIdCounter = 0;
-const _rowNutrition = {};   // cache: rowId → nutrition object from API
+const _rowNutrition = {};   // rowId → { sheetsRow, factor, macros }
 
 function addIngredientRow(defaultText, skipFocus) {
   const id   = ++_ingredientIdCounter;
   const wrap = document.getElementById('ingredientRows');
   if (!wrap) return;
-  const row  = document.createElement('div');
-  row.className = 'ingredient-row';
+
+  const row = document.createElement('div');
+  row.className = 'ingredient-row-wrap';
   row.id = `irow-${id}`;
   row.innerHTML = `
-    <div class="ingredient-input-wrap" style="flex:1;position:relative">
-      <input type="text" class="ingredient-input" id="ing-${id}"
-        placeholder="Ej: 2 white bread slices, 100g beef patty..."
-        value="${escHtml(defaultText || '')}"
-        autocomplete="off"
-        oninput="onIngredientInput(event, ${id})"
-        onblur="setTimeout(()=>hideDropdown('ing-ac-${id}'),150)" />
-      <div class="ac-dropdown" id="ing-ac-${id}" style="display:none"></div>
+    <div class="ingredient-row">
+      <div class="ingredient-input-wrap" style="flex:1;position:relative">
+        <input type="text" class="ingredient-input" id="ing-${id}"
+          placeholder="Buscar ingrediente…"
+          value="${escHtml(defaultText || '')}"
+          autocomplete="off"
+          oninput="onIngredientInput(event,${id})"
+          onblur="setTimeout(()=>hideDropdown('ing-ac-${id}'),180)" />
+        <div class="ac-dropdown" id="ing-ac-${id}" style="display:none"></div>
+      </div>
+      <button class="ingredient-remove" onclick="removeIngredientRow(${id})" title="Quitar">✕</button>
     </div>
-    <span class="ingredient-cal-badge" id="ing-cal-${id}" style="display:none"></span>
-    <button class="ingredient-remove" onclick="removeIngredientRow(${id})" title="Quitar">✕</button>`;
+    <!-- Portion selector — shown after ingredient is selected -->
+    <div class="ing-portion-row" id="ing-portion-${id}" style="display:none">
+      <span class="ing-unit-label" id="ing-unit-${id}"></span>
+      <div class="ing-factor-wrap">
+        <button class="ing-factor-btn" onclick="changeIngFactor(${id},-0.5)">−</button>
+        <input type="number" class="ing-factor-input" id="ing-factor-${id}"
+          value="1" min="0.25" step="0.25"
+          oninput="onIngFactorChange(${id})" />
+        <button class="ing-factor-btn" onclick="changeIngFactor(${id},0.5)">+</button>
+      </div>
+      <span class="ingredient-cal-badge" id="ing-cal-${id}" style="display:inline-flex">— kcal</span>
+    </div>`;
+
   wrap.appendChild(row);
   if (!skipFocus) {
     const inp = document.getElementById(`ing-${id}`);
@@ -1862,53 +2023,94 @@ function getIngredientLines() {
     .filter(Boolean);
 }
 
-/* ── PER-ROW AUTOCOMPLETE via /v1/nutrition ──────────────────── */
-// Each row queries /v1/nutrition as the user types.
-// The API returns items[] scaled to the quantity in the query text.
-// We show up to 5 suggestions with name + kcal + serving size.
-
+/* ── AUTOCOMPLETE via Sheets Ingredientes ────────────────────── */
 const _ingSearchDebounced = {};
 
 function onIngredientInput(e, rowId) {
   resetFoodCalc();
-  if (!hasApiKey()) return;
-  if (!_ingSearchDebounced[rowId]) {
-    _ingSearchDebounced[rowId] = debounce((id, q) => searchIngredient(id, q), 400);
-  }
-  _ingSearchDebounced[rowId](rowId, e.target.value.trim());
-}
-
-async function searchIngredient(rowId, query) {
-  if (query.length < 2) { hideDropdown(`ing-ac-${rowId}`); return; }
-  try {
-    // Encode commas as %2C per API docs; use "and" join if multiple words
-    // Normalize fractions ("1/2 calabaza" → "0.5 calabaza") then encode commas
-    const safeQuery = normalizeFractionsInQuery(query).replace(/,/g, '%2C');
-    const items = await anFetch(`/nutrition?query=${encodeURIComponent(safeQuery)}`);
-    if (!items || !items.length) { hideDropdown(`ing-ac-${rowId}`); return; }
-    showDropdown(
-      `ing-ac-${rowId}`,
-      items.slice(0, 5).map(f => {
-        const cal = nutriCalories(f);
-        return {
-          label: `${f.name} &mdash; <strong>${cal} kcal</strong> <small>(${f.serving_size_g}g)</small>`,
-          data:  { ...f, _kcal: cal }   // attach pre-computed kcal
-        };
-      }),
-      (item) => selectIngredient(rowId, item.data)
-    );
-  } catch (_) { hideDropdown(`ing-ac-${rowId}`); }
-}
-
-function selectIngredient(rowId, food) {
-  const inp = document.getElementById(`ing-${rowId}`);
-  if (inp) inp.value = food.name;
-  // Store with guaranteed numeric kcal so macros work correctly
-  const cal = food._kcal != null ? food._kcal : nutriCalories(food);
-  _rowNutrition[rowId] = { ...food, calories: cal };
-  setBadge(rowId, cal);
-  hideDropdown(`ing-ac-${rowId}`);
+  // Reset portion row
+  const portRow = document.getElementById(`ing-portion-${rowId}`);
+  if (portRow) portRow.style.display = 'none';
+  delete _rowNutrition[rowId];
   updateTotalsFromResolved();
+
+  const q = e.target.value.trim();
+  if (!_ingSearchDebounced[rowId]) {
+    _ingSearchDebounced[rowId] = debounce((id, query) => _searchIngSheet(id, query), 300);
+  }
+  _ingSearchDebounced[rowId](rowId, q);
+}
+
+async function _searchIngSheet(rowId, query) {
+  if (query.length < 1) { hideDropdown(`ing-ac-${rowId}`); return; }
+  const all  = await loadIngredientes();
+  const q    = query.toLowerCase();
+  const hits = all.filter(r =>
+    String(r.nombre).toLowerCase().includes(q) ||
+    String(r.categoria).toLowerCase().includes(q)
+  ).slice(0, 7);
+
+  if (!hits.length) { hideDropdown(`ing-ac-${rowId}`); return; }
+
+  showDropdown(
+    `ing-ac-${rowId}`,
+    hits.map(row => ({
+      label: `<span style="color:var(--text-2);font-size:.68rem;margin-right:.35rem">${row.categoria}</span>` +
+             `<strong>${row.nombre}</strong>` +
+             ` <span style="color:var(--lime);font-size:.75rem">${row.calorias_100g} kcal/100g</span>` +
+             `<span style="color:var(--text-3);font-size:.68rem"> · ${row.unidad_comun || ''}</span>`,
+      data: row
+    })),
+    (item) => selectIngredientFromSheet(rowId, item.data)
+  );
+}
+
+function selectIngredientFromSheet(rowId, row) {
+  const inp = document.getElementById(`ing-${rowId}`);
+  if (inp) inp.value = row.nombre;
+  hideDropdown(`ing-ac-${rowId}`);
+
+  // Store
+  _rowNutrition[rowId] = { row, factor: 1 };
+
+  // Show portion row
+  const portRow  = document.getElementById(`ing-portion-${rowId}`);
+  const unitLbl  = document.getElementById(`ing-unit-${rowId}`);
+  const calBadge = document.getElementById(`ing-cal-${rowId}`);
+  if (portRow) portRow.style.display = 'flex';
+  if (unitLbl) unitLbl.textContent = row.unidad_comun || '100g';
+
+  _updateIngBadge(rowId);
+  updateTotalsFromResolved();
+}
+
+function changeIngFactor(rowId, delta) {
+  const inp = document.getElementById(`ing-factor-${rowId}`);
+  if (!inp) return;
+  const current = parseFloat(inp.value) || 1;
+  const next    = Math.max(0.25, Math.round((current + delta) * 4) / 4);
+  inp.value = next;
+  if (_rowNutrition[rowId]) _rowNutrition[rowId].factor = next;
+  _updateIngBadge(rowId);
+  updateTotalsFromResolved();
+  resetFoodCalc();
+}
+
+function onIngFactorChange(rowId) {
+  const inp = document.getElementById(`ing-factor-${rowId}`);
+  if (!inp || !_rowNutrition[rowId]) return;
+  _rowNutrition[rowId].factor = parseFloat(inp.value) || 1;
+  _updateIngBadge(rowId);
+  updateTotalsFromResolved();
+  resetFoodCalc();
+}
+
+function _updateIngBadge(rowId) {
+  const entry    = _rowNutrition[rowId];
+  const calBadge = document.getElementById(`ing-cal-${rowId}`);
+  if (!entry || !calBadge) return;
+  const cal = calcIngCalories(entry.row, entry.factor);
+  calBadge.textContent = `${cal} kcal`;
 }
 
 function setBadge(rowId, kcal) {
@@ -1918,26 +2120,42 @@ function setBadge(rowId, kcal) {
   b.style.display = 'inline-flex';
 }
 
-/* ── MACROS — live update from already-resolved rows ─────────── */
+/* ── MACROS — live update ────────────────────────────────────── */
 function updateTotalsFromResolved() {
-  const resolved = Object.values(_rowNutrition);
+  const entries  = Object.values(_rowNutrition).filter(e => e && e.row);
   const macros   = document.getElementById('macrosSummary');
-  if (!resolved.length) { if (macros) macros.style.display = 'none'; return; }
+  if (!entries.length) { if (macros) macros.style.display = 'none'; return; }
 
   const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
-  const sum = resolved.reduce((s, f) => ({
-    calories:              s.calories              + (f.calories              || 0),
-    protein_g:             s.protein_g             + (f.protein_g             || 0),
-    carbohydrates_total_g: s.carbohydrates_total_g + (f.carbohydrates_total_g || 0),
-    fat_total_g:           s.fat_total_g           + (f.fat_total_g           || 0),
-    fiber_g:               s.fiber_g               + (f.fiber_g               || 0),
-  }), { calories:0, protein_g:0, carbohydrates_total_g:0, fat_total_g:0, fiber_g:0 });
+  const sum = entries.reduce((s, e) => {
+    const m = calcIngMacros(e.row, e.factor);
+    return {
+      calories:              s.calories              + m.calories,
+      protein_g:             s.protein_g             + m.protein_g,
+      carbohydrates_total_g: s.carbohydrates_total_g + m.carbohydrates_total_g,
+      fat_total_g:           s.fat_total_g           + m.fat_total_g,
+      fiber_g:               s.fiber_g               + m.fiber_g,
+    };
+  }, { calories:0, protein_g:0, carbohydrates_total_g:0, fat_total_g:0, fiber_g:0 });
 
   document.getElementById('mProtein').textContent = Math.round(sum.protein_g             * portions);
   document.getElementById('mCarbs').textContent   = Math.round(sum.carbohydrates_total_g * portions);
   document.getElementById('mFat').textContent     = Math.round(sum.fat_total_g           * portions);
   document.getElementById('mFiber').textContent   = Math.round(sum.fiber_g               * portions);
   if (macros) macros.style.display = 'flex';
+
+  // Also auto-fill calorie field from resolved ingredients
+  const totalCal = Math.round(sum.calories * portions);
+  const calInput = document.getElementById('foodCalories');
+  const badge    = document.getElementById('foodCalBadge');
+  if (calInput && !calInput.classList.contains('manual-edited')) {
+    calInput.value = totalCal || '';
+    if (badge && totalCal) {
+      badge.textContent   = 'Sheets';
+      badge.className     = 'calorie-result-badge';
+      badge.style.display = 'inline-flex';
+    }
+  }
 }
 
 function onPortionsChange() {
@@ -1945,104 +2163,24 @@ function onPortionsChange() {
   resetFoodCalc();
 }
 
-/* ── FULL NUTRITION FETCH via /v1/nutrition ──────────────────── */
-// Per the API docs, the query can describe multiple items using "and":
-//   "1lb brisket and fries" → returns an array, one object per food.
-// We join all ingredient rows with " and " into a single request.
-// The API handles quantities automatically ("2 white bread slices" scales correctly).
-// Commas in individual items are URL-encoded as %2C.
-
+/* ── ESTIMATE BUTTON (now recalculates from Sheets data) ─────── */
 async function estimateFoodCalories() {
-  const lines = getIngredientLines();
-  if (!lines.length) { showToast('Agrega al menos un ingrediente', 'error'); return; }
-
-  const btn   = document.getElementById('btnEstimateFood');
-  const label = document.getElementById('btnEstimateFoodLabel');
-  btn.classList.add('loading');
-  btn.disabled = true;
-  label.textContent = 'Consultando base de datos…';
-
-  document.querySelectorAll('.ingredient-cal-badge').forEach(b => {
-    b.style.display = 'none'; b.textContent = '';
-  });
-
-  const portions  = parseFloat(document.getElementById('foodPortions')?.value) || 1;
-  const inputEls  = [...document.querySelectorAll('.ingredient-input')];
-
-  if (hasApiKey()) {
-    try {
-      // Join all lines with " and " — the API parses each food item separately.
-      // Encode commas inside individual items as %2C per docs.
-      // Normalize fractions to decimals before sending ("1/2 calabaza" → "0.5 calabaza")
-      const safeLines = lines
-        .map(l => normalizeFractionsInQuery(l))   // 1/2 → 0.5
-        .map(l => l.replace(/,/g, '%2C'));         // encode commas per API docs
-      const query     = safeLines.join(' and ');
-      const items     = await anFetch(`/nutrition?query=${encodeURIComponent(query)}`);
-
-      if (!items || !items.length) throw new Error('Sin resultados — intenta con nombres en inglés');
-
-      // Map API items back to input rows (best-effort by position)
-      const breakdown = [];
-      let   totalCal  = 0;
-
-      items.forEach((food, i) => {
-        // Use nutriCalories() — handles premium-locked fields via Atwater
-        const cal = nutriCalories(food);
-        totalCal += cal;
-
-        const el = inputEls[i];
-        if (el) {
-          const rowId = el.id.replace('ing-', '');
-          setBadge(rowId, cal);
-          // Cache with guaranteed numeric calories for macros
-          _rowNutrition[rowId] = { ...food, calories: cal };
-        }
-
-        // Build breakdown label with available macro detail
-        const fat   = Number(food.fat_total_g)           || 0;
-        const carbs = Number(food.carbohydrates_total_g) || 0;
-        const sugar = Number(food.sugar_g)               || 0;
-        const detail = `fat ${fat}g · carbs ${carbs}g · sugar ${sugar}g`;
-        breakdown.push(`${food.name} (${food.serving_size_g}g) — ${cal} kcal  [${detail}]`);
-      });
-
-      // If API returned fewer items than rows (e.g. it merged some),
-      // use fallback for unmatched rows
-      if (items.length < lines.length) {
-        for (let i = items.length; i < lines.length; i++) {
-          const fb  = roughFoodEstimateLines([lines[i]]);
-          totalCal += fb.total;
-          breakdown.push(fb.breakdown[0] + ' (estimado)');
-          const el = inputEls[i];
-          if (el) setBadge(el.id.replace('ing-', ''), fb.total);
-        }
-      }
-
-      showFoodResult(Math.round(totalCal * portions), breakdown, 'API Ninjas');
-      updateTotalsFromResolved();
-      label.textContent = '✓ Calculado · modifica y vuelve a calcular si es necesario';
-
-    } catch (err) {
-      console.warn('API Ninjas nutrition error:', err.message);
-      showToast(err.message.includes('Sin resultados')
-        ? 'Sin resultados — prueba describir los ingredientes en inglés'
-        : 'Error de API — usando estimación local',
-        'error');
-      const result = roughFoodEstimateLines(lines);
-      showFoodResult(Math.round(result.total * portions), result.breakdown, 'Estimado');
-      label.textContent = '✓ Estimado (fallback local)';
-    }
-
-  } else {
-    // No API key — local heuristic
-    const result = roughFoodEstimateLines(lines);
-    showFoodResult(Math.round(result.total * portions), result.breakdown, 'Estimado');
-    label.textContent = '✓ Estimado (sin API key — configura API Ninjas en ⚙)';
+  // Recalculate from already-resolved rows
+  const entries = Object.values(_rowNutrition).filter(e => e && e.row);
+  if (!entries.length) {
+    showToast('Selecciona ingredientes del buscador primero', 'error');
+    return;
   }
-
-  btn.classList.remove('loading');
-  btn.disabled = false;
+  const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
+  const totalCal = Math.round(
+    entries.reduce((s, e) => s + calcIngCalories(e.row, e.factor), 0) * portions
+  );
+  const breakdown = entries.map(e => {
+    const cal = calcIngCalories(e.row, e.factor);
+    const g   = Math.round((Number(e.row.cantidad_comun_g) || 100) * e.factor);
+    return `${e.row.nombre} ×${e.factor} (${g}g) — ${cal} kcal`;
+  });
+  showFoodResult(totalCal, breakdown, 'Sheets');
 }
 
 function showFoodResult(totalCal, breakdownArr, source) {
@@ -2056,8 +2194,8 @@ function showFoodResult(totalCal, breakdownArr, source) {
   document.getElementById('foodCalories').value = totalCal;
   document.getElementById('foodCalories').classList.remove('manual-edited');
   const badge = document.getElementById('foodCalBadge');
-  badge.textContent = source;
-  badge.className   = 'calorie-result-badge';
+  badge.textContent   = source;
+  badge.className     = 'calorie-result-badge';
   badge.style.display = 'inline-flex';
   const wrap = document.getElementById('foodBreakdownWrap');
   if (wrap) wrap.style.display = breakdownArr.length ? 'block' : 'none';
@@ -2071,7 +2209,6 @@ function markFoodManual() {
   document.getElementById('foodCalories').classList.add('manual-edited');
 }
 
-// Called whenever user types directly in the calorie field
 function onFoodCaloriesInput() {
   const badge = document.getElementById('foodCalBadge');
   badge.textContent   = 'Manual';
@@ -2082,308 +2219,37 @@ function onFoodCaloriesInput() {
 
 function resetFoodCalc() {
   const wrap  = document.getElementById('foodBreakdownWrap');
-  const label = document.getElementById('btnEstimateFoodLabel');
   const badge = document.getElementById('foodCalBadge');
-  if (wrap)  wrap.style.display  = 'none';
-  if (label) label.textContent   = 'Calcular calorías';
-  // Do NOT clear the calorie value — user may have typed it manually
-  // Do NOT disable save button — it should always be clickable
-  if (badge) badge.style.display = 'none';
-  document.querySelectorAll('.ingredient-cal-badge').forEach(b => {
-    b.style.display = 'none'; b.textContent = '';
-  });
-}
-
-// Heuristic fallback — runs when API is unavailable or returns no results
-/* ── QUANTITY PARSING HELPERS ───────────────────────────────── */
-/**
- * Parse a quantity from the start of a food string.
- * Handles: integers (2), decimals (0.5), fractions (1/2, 2/3), mixed (1 1/2).
- * Falls back to 1 if no number found.
- */
-function parseFraction(str) {
-  const s = str.trim();
-  // Mixed number: "1 1/2"
-  let m = s.match(/^(\d+)\s+(\d+)\/(\d+)/);
-  if (m) return parseInt(m[1]) + parseInt(m[2]) / parseInt(m[3]);
-  // Simple fraction: "1/2", "2/3"
-  m = s.match(/^(\d+)\/(\d+)/);
-  if (m) return parseInt(m[1]) / parseInt(m[2]);
-  // Decimal or integer: "0.5", "2"
-  m = s.match(/^(\d*\.?\d+)/);
-  if (m) return parseFloat(m[1]);
-  // Word fractions
-  if (/^half/i.test(s))    return 0.5;
-  if (/^quarter/i.test(s)) return 0.25;
-  if (/^mitad/i.test(s))   return 0.5;
-  if (/^cuarto/i.test(s))  return 0.25;
-  if (/^tercio/i.test(s))  return 0.333;
-  return 1;
-}
-
-/**
- * Convert fraction notation to decimal in a query string so the API understands it.
- * "1/2 calabaza" → "0.5 calabaza"
- * "1 1/2 cups rice" → "1.5 cups rice"
- * Leaves decimals and integers unchanged.
- */
-function normalizeFractionsInQuery(line) {
-  let s = line.trim();
-  // Mixed: 1 1/2
-  s = s.replace(/(\d+)\s+(\d+)\/(\d+)/g, (_, a, b, c) => {
-    const val = parseInt(a) + parseInt(b) / parseInt(c);
-    return Number.isInteger(val) ? String(val) : val.toFixed(2).replace(/\.?0+$/, '');
-  });
-  // Simple fraction: 1/2, 2/3
-  s = s.replace(/(\d+)\/(\d+)/g, (_, a, b) => {
-    const val = parseInt(a) / parseInt(b);
-    return val.toFixed(2).replace(/\.?0+$/, '');
-  });
-  // Word fractions
-  s = s.replace(/^half/i,    '0.5');
-  s = s.replace(/^quarter/i, '0.25');
-  s = s.replace(/^mitad/i,   '0.5');
-  s = s.replace(/^cuarto/i,  '0.25');
-  s = s.replace(/^tercio/i,  '0.33');
-  return s;
-}
-
-const FOOD_PATTERNS = [
-  [/(lechuga|lettuce|arugula|romaine)/i,                                      15, 'Lechuga'],
-  [/(espinaca|spinach|acelga|chard|berro)/i,                                  23, 'Espinaca'],
-  [/(kale|col rizada|berza)/i,                                                49, 'Kale'],
-  [/(calabaza|zucchini|squash|auyama|chayote)/i,                             17, 'Calabaza'],
-  [/(pepino|cucumber)/i,                                                      15, 'Pepino'],
-  [/(brocoli|broccoli)/i,                                                     34, 'Brocoli'],
-  [/(coliflor|cauliflower)/i,                                                 25, 'Coliflor'],
-  [/(repollo|cabbage)/i,                                                      25, 'Repollo'],
-  [/(zanahoria|carrot)/i,                                                     41, 'Zanahoria'],
-  [/(betabel|beet|remolacha)/i,                                               43, 'Betabel'],
-  [/(tomate|jitomate|tomato)/i,                                               18, 'Tomate'],
-  [/(pimiento|bell pepper)/i,                                                 31, 'Pimiento'],
-  [/(chile serrano|jalapen|habanero|chile verde)/i,                           40, 'Chile'],
-  [/(cebollita|green onion|scallion)/i,                                       32, 'Cebollita'],
-  [/(cebolla|onion)/i,                                                        40, 'Cebolla'],
-  [/(ajo|garlic)/i,                                                          149, 'Ajo'],
-  [/(poro|leek)/i,                                                            61, 'Poro'],
-  [/(apio|celery)/i,                                                          16, 'Apio'],
-  [/(nopal|cactus)/i,                                                         16, 'Nopal'],
-  [/(ejote|green bean)/i,                                                     31, 'Ejote'],
-  [/(chicharo|pea)/i,                                                         81, 'Chicharo'],
-  [/(esparragos|asparagus)/i,                                                 20, 'Esparragos'],
-  [/(hongos|champin|mushroom|seta)/i,                                         22, 'Hongos'],
-  [/(elote|corn on the cob)/i,                                                86, 'Elote'],
-  [/(maiz|corn)/i,                                                            86, 'Maiz'],
-  [/(jicama)/i,                                                               38, 'Jicama'],
-  [/(camote|sweet potato|boniato)/i,                                          86, 'Camote'],
-  [/(yuca|cassava|mandioca)/i,                                               160, 'Yuca'],
-  [/(platano macho|plantain)/i,                                              122, 'Platano macho'],
-  [/(papa|potato)/i,                                                          87, 'Papa'],
-  [/(pechuga de pollo|chicken breast)/i,                                    165, 'Pechuga pollo'],
-  [/(muslo de pollo|chicken thigh)/i,                                        209, 'Muslo pollo'],
-  [/(pavo|turkey)/i,                                                         135, 'Pavo'],
-  [/(pollo|chicken)/i,                                                       165, 'Pollo'],
-  [/(carne molida|ground beef|carne para hamburguesa)/i,                     250, 'Carne molida'],
-  [/(milanesa de res)/i,                                                     270, 'Milanesa res'],
-  [/(bistec|steak|carne asada|arrachera)/i,                                  207, 'Bistec res'],
-  [/(brisket|falda)/i,                                                       289, 'Corte graso res'],
-  [/(res|beef)/i,                                                            250, 'Carne de res'],
-  [/(tocino|bacon)/i,                                                        540, 'Tocino'],
-  [/(jamon de pavo|turkey ham)/i,                                            107, 'Jamon de pavo'],
-  [/(jamon serrano|prosciutto)/i,                                            145, 'Jamon serrano'],
-  [/(jamon|ham)/i,                                                           145, 'Jamon'],
-  [/(salchicha|hot dog|wiener)/i,                                            290, 'Salchicha'],
-  [/(chorizo)/i,                                                             455, 'Chorizo'],
-  [/(longaniza)/i,                                                           400, 'Longaniza'],
-  [/(carnitas)/i,                                                            300, 'Carnitas'],
-  [/(chicharron)/i,                                                          544, 'Chicharron'],
-  [/(costilla de cerdo|pork rib)/i,                                          290, 'Costilla cerdo'],
-  [/(cerdo|pork)/i,                                                          280, 'Cerdo'],
-  [/(salmon)/i,                                                              208, 'Salmon'],
-  [/(atun|tuna)/i,                                                           132, 'Atun'],
-  [/(sardina|sardine)/i,                                                     208, 'Sardina'],
-  [/(camaron|shrimp)/i,                                                       99, 'Camaron'],
-  [/(calamar|squid)/i,                                                        92, 'Calamar'],
-  [/(pulpo|octopus)/i,                                                        82, 'Pulpo'],
-  [/(tilapia)/i,                                                             128, 'Tilapia'],
-  [/(pescado blanco|white fish|basa|cod|bacalao)/i,                           82, 'Pescado blanco'],
-  [/(pescado|fish)/i,                                                        136, 'Pescado'],
-  [/(clara de huevo|egg white)/i,                                             17, 'Clara huevo'],
-  [/(huevo|egg)/i,                                                            78, 'Huevo'],
-  [/(tofu)/i,                                                                 76, 'Tofu'],
-  [/(tempeh)/i,                                                              193, 'Tempeh'],
-  [/(edamame)/i,                                                             121, 'Edamame'],
-  [/(arroz integral|brown rice)/i,                                           123, 'Arroz integral'],
-  [/(arroz|rice)/i,                                                          130, 'Arroz cocido'],
-  [/(quinoa|quinua)/i,                                                       120, 'Quinoa cocida'],
-  [/(espagueti|spaghetti)/i,                                                 220, 'Espagueti cocido'],
-  [/(pasta integral|whole wheat pasta)/i,                                    174, 'Pasta integral'],
-  [/(pasta|fideos|noodle|tallarines|macarron)/i,                             220, 'Pasta cocida'],
-  [/(pan bimbo integral|pan integral bimbo)/i,                               109, 'Pan Bimbo integral'],
-  [/(pan bimbo|pan blanco bimbo)/i,                                           79, 'Pan Bimbo blanco'],
-  [/(pan para hamburguesa bimbo|hamburger bun bimbo)/i,                      130, 'Pan hamburguesa Bimbo'],
-  [/(pan integral|whole wheat bread)/i,                                       80, 'Pan integral'],
-  [/(bolillo)/i,                                                             231, 'Bolillo'],
-  [/(baguette)/i,                                                            274, 'Baguette'],
-  [/(pan dulce|concha|cuernito)/i,                                           325, 'Pan dulce'],
-  [/(pan para hot dog|hot dog bun)/i,                                        120, 'Pan hot dog'],
-  [/(tortilla de maiz|corn tortilla)/i,                                       52, 'Tortilla maiz'],
-  [/(tortilla de harina|flour tortilla)/i,                                   146, 'Tortilla harina'],
-  [/(tostada de maiz|corn tostada)/i,                                         50, 'Tostada maiz'],
-  [/(tortilla|tostada)/i,                                                     79, 'Tortilla'],
-  [/(pan de caja|sandwich bread)/i,                                           79, 'Pan de caja'],
-  [/(pan|bread|bun|slice)/i,                                                  79, 'Pan'],
-  [/(avena en hojuelas|rolled oats|oatmeal)/i,                               389, 'Avena cruda'],
-  [/(avena|oats)/i,                                                          150, 'Avena cocida'],
-  [/(cereal integral|bran cereal|all bran)/i,                                 80, 'Cereal integral'],
-  [/(granola)/i,                                                             450, 'Granola'],
-  [/(cereal|cornflakes)/i,                                                   110, 'Cereal'],
-  [/(totopos|tortilla chips|nachos)/i,                                       489, 'Totopos'],
-  [/(tamal)/i,                                                               190, 'Tamal'],
-  [/(leche entera|whole milk)/i,                                              61, 'Leche entera'],
-  [/(leche descremada|skim milk)/i,                                           35, 'Leche descremada'],
-  [/(leche de almendras|almond milk)/i,                                       15, 'Leche almendras'],
-  [/(leche de avena|oat milk)/i,                                              44, 'Leche avena'],
-  [/(leche|milk)/i,                                                           61, 'Leche'],
-  [/(yogurt griego|greek yogurt)/i,                                           73, 'Yogurt griego'],
-  [/(yogurt natural|plain yogurt)/i,                                          59, 'Yogurt natural'],
-  [/(yogurt|yogur)/i,                                                         59, 'Yogurt'],
-  [/(queso panela)/i,                                                        280, 'Queso panela'],
-  [/(queso oaxaca|quesillo)/i,                                               356, 'Queso Oaxaca'],
-  [/(queso manchego|manchego)/i,                                             380, 'Queso manchego'],
-  [/(queso fresco)/i,                                                        260, 'Queso fresco'],
-  [/(queso cottage)/i,                                                        98, 'Queso cottage'],
-  [/(queso crema|cream cheese)/i,                                            342, 'Queso crema'],
-  [/(queso|cheese)/i,                                                        113, 'Queso'],
-  [/(requeson|ricotta)/i,                                                    174, 'Requeson'],
-  [/(crema acida|sour cream)/i,                                              198, 'Crema acida'],
-  [/(mantequilla|butter)/i,                                                  717, 'Mantequilla'],
-  [/(margarina)/i,                                                           720, 'Margarina'],
-  [/(frijoles negros|black beans)/i,                                         132, 'Frijoles negros'],
-  [/(frijoles pintos|pinto beans)/i,                                         143, 'Frijoles pintos'],
-  [/(frijoles refritos)/i,                                                   120, 'Frijoles refritos'],
-  [/(frijol|bean)/i,                                                         130, 'Frijoles cocidos'],
-  [/(lentejas|lentil)/i,                                                     116, 'Lentejas cocidas'],
-  [/(garbanzo|chickpea)/i,                                                   164, 'Garbanzo cocido'],
-  [/(haba|fava bean)/i,                                                      110, 'Habas cocidas'],
-  [/(soya|soy)/i,                                                            173, 'Soya cocida'],
-  [/(aguacate|avocado)/i,                                                    160, 'Aguacate'],
-  [/(aceite de oliva|olive oil)/i,                                           884, 'Aceite oliva'],
-  [/(aceite|oil)/i,                                                          884, 'Aceite'],
-  [/(nuez|walnut)/i,                                                         654, 'Nuez'],
-  [/(almendra|almond)/i,                                                     579, 'Almendra'],
-  [/(cacahuate|peanut)/i,                                                    567, 'Cacahuate'],
-  [/(pistache|pistachio)/i,                                                  560, 'Pistache'],
-  [/(chia)/i,                                                                486, 'Chia'],
-  [/(linaza|flaxseed)/i,                                                     534, 'Linaza'],
-  [/(mayonesa|mayo)/i,                                                       680, 'Mayonesa'],
-  [/(mantequilla de mani|peanut butter)/i,                                   588, 'Mantequilla mani'],
-  [/(manzana roja|red apple)/i,                                               52, 'Manzana roja'],
-  [/(manzana verde|green apple)/i,                                            52, 'Manzana verde'],
-  [/(manzana|apple)/i,                                                        52, 'Manzana'],
-  [/(pera|pear)/i,                                                            57, 'Pera'],
-  [/(mango ataulfo|ataulfo)/i,                                                65, 'Mango ataulfo'],
-  [/(mango)/i,                                                                65, 'Mango'],
-  [/(platano|banana)/i,                                                       89, 'Platano'],
-  [/(papaya)/i,                                                               43, 'Papaya'],
-  [/(pina|pineapple)/i,                                                       50, 'Pina'],
-  [/(sandia|watermelon)/i,                                                    30, 'Sandia'],
-  [/(melon|cantaloupe)/i,                                                     34, 'Melon'],
-  [/(naranja|orange)/i,                                                       47, 'Naranja'],
-  [/(mandarina|tangerine)/i,                                                  53, 'Mandarina'],
-  [/(toronja|grapefruit)/i,                                                   42, 'Toronja'],
-  [/(limon|lime|lemon)/i,                                                     29, 'Limon'],
-  [/(fresa|strawberry)/i,                                                     32, 'Fresa'],
-  [/(mora|blackberry|zarzamora)/i,                                            43, 'Mora'],
-  [/(arandano|blueberry)/i,                                                   57, 'Arandano'],
-  [/(uva|grape)/i,                                                            69, 'Uva'],
-  [/(cereza|cherry)/i,                                                        50, 'Cereza'],
-  [/(durazno|peach)/i,                                                        39, 'Durazno'],
-  [/(ciruela|plum)/i,                                                         46, 'Ciruela'],
-  [/(guayaba|guava)/i,                                                        68, 'Guayaba'],
-  [/(tamarindo|tamarind)/i,                                                  239, 'Tamarindo'],
-  [/(fruta|fruit)/i,                                                          55, 'Fruta generica'],
-  [/(salsa roja|red salsa)/i,                                                 36, 'Salsa roja'],
-  [/(salsa verde|salsa tomatillo)/i,                                          26, 'Salsa verde'],
-  [/(guacamole)/i,                                                           150, 'Guacamole'],
-  [/(pico de gallo)/i,                                                        25, 'Pico de gallo'],
-  [/(ketchup|catsup)/i,                                                      100, 'Ketchup'],
-  [/(mostaza|mustard)/i,                                                      66, 'Mostaza'],
-  [/(aderezo ranch|ranch)/i,                                                 238, 'Aderezo ranch'],
-  [/(aderezo cesar|caesar)/i,                                                280, 'Aderezo Cesar'],
-  [/(aderezo|dressing)/i,                                                    180, 'Aderezo'],
-  [/(mole)/i,                                                                220, 'Mole'],
-  [/(adobo)/i,                                                               130, 'Adobo'],
-  [/(salsa)/i,                                                                30, 'Salsa'],
-  [/(miel|honey)/i,                                                          304, 'Miel'],
-  [/(azucar|sugar)/i,                                                        387, 'Azucar'],
-  [/(agua de jamaica|hibiscus)/i,                                             20, 'Agua Jamaica'],
-  [/(agua de horchata|horchata)/i,                                           130, 'Horchata'],
-  [/(agua de tamarindo)/i,                                                    60, 'Agua tamarindo'],
-  [/(cafe negro|black coffee)/i,                                               2, 'Cafe negro'],
-  [/(cafe con leche|latte|cafe latte)/i,                                     120, 'Cafe con leche'],
-  [/(jugo de naranja|orange juice)/i,                                        112, 'Jugo naranja'],
-  [/(jugo verde|green juice)/i,                                               50, 'Jugo verde'],
-  [/(jugo|juice)/i,                                                           45, 'Jugo'],
-  [/(refresco|soda|cola)/i,                                                  180, 'Refresco'],
-  [/(cerveza|beer)/i,                                                         43, 'Cerveza'],
-  [/(chocolate negro|dark chocolate)/i,                                      546, 'Chocolate negro'],
-  [/(chocolate)/i,                                                           535, 'Chocolate'],
-  [/(mermelada|jam)/i,                                                       250, 'Mermelada'],
-  [/(papas fritas|french fries|fries)/i,                                     312, 'Papas fritas'],
-  [/(frituras)/i,                                                            547, 'Frituras'],
-  [/(palomitas|popcorn)/i,                                                   375, 'Palomitas'],
-  [/(galleta|cookie)/i,                                                      450, 'Galleta'],
-  [/(helado|ice cream)/i,                                                    207, 'Helado'],
-  [/(caldo de pollo|chicken broth)/i,                                         15, 'Caldo pollo'],
-  [/(caldo de res|beef broth)/i,                                              17, 'Caldo res'],
-  [/(caldo)/i,                                                                15, 'Caldo'],
-  [/(crema de leche|heavy cream)/i,                                          340, 'Crema de leche'],
-  [/(crema|cream)/i,                                                         198, 'Crema'],
-];
-
-function roughFoodEstimateLines(lines) {
-  let total = 0;
-  const breakdown = [];
-  for (const line of lines) {
-    // parseFraction handles 1/2, 2/3, 1 1/2, decimals, integers, word fractions
-    const qty   = parseFraction(line);
-    let   match = null;
-    for (const [re, base, label] of FOOD_PATTERNS) {
-      if (re.test(line)) { match = { base, label }; break; }
-    }
-    // Fallback: 200 kcal per unit is too high for most vegetables/fruits.
-    // Use 50 as a more reasonable unknown-food fallback.
-    const cal = match ? Math.round(match.base * qty) : Math.round(50 * qty);
-    const lbl = match ? match.label : 'Alimento (estimación base)';
-    total += cal;
-    breakdown.push(`${line} — ${cal} kcal (${lbl})`);
-    const inputEls = [...document.querySelectorAll('.ingredient-input')];
-    const idx = inputEls.findIndex(el => el.value.trim() === line);
-    if (idx >= 0) setBadge(inputEls[idx].id.replace('ing-', ''), cal);
-  }
-  return { total, breakdown };
+  if (wrap) wrap.style.display = 'none';
+  // Don't clear calories or disable save
 }
 
 /* ── FOOD SUBMIT ─────────────────────────────────────────────── */
 async function submitFood() {
-  const lines = getIngredientLines();
-  const cals  = parseFloat(document.getElementById('foodCalories').value);
-  const name  = document.getElementById('foodName').value.trim() || lines.slice(0,2).join(', ');
+  const entries  = Object.values(_rowNutrition).filter(e => e && e.row);
+  const lines    = getIngredientLines();
+  const cals     = parseFloat(document.getElementById('foodCalories').value);
+  const name     = document.getElementById('foodName').value.trim()
+                   || lines.slice(0,2).join(', ')
+                   || 'Comida';
 
   if (!lines.length) { showToast('Agrega al menos un ingrediente', 'error'); return; }
-  if (!cals || isNaN(cals) || cals < 0) {
-    showToast('Ingresa o calcula las calorías primero', 'error');
+  if (!cals || isNaN(cals) || cals <= 0) {
+    showToast('Las calorías aún son 0 — selecciona ingredientes del buscador', 'error');
     document.getElementById('foodCalories').focus();
     return;
   }
 
   const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
+  const ingStr   = entries.length
+    ? entries.map(e => `${e.factor} × ${e.row.nombre}`).join(', ')
+    : lines.join(', ');
+
   const entry = {
     id:            Date.now().toString(),
     date:          state.selectedDate,
     name,
-    ingredients:   lines.join(', '),
+    ingredients:   ingStr,
     calories:      cals,
     portions,
     meal:          document.getElementById('foodMeal').value,
@@ -2409,6 +2275,206 @@ async function submitFood() {
 
   renderAll();
   showToast('Comida registrada ✓', 'success');
+}
+
+/* ── RECETARIO MODAL ─────────────────────────────────────────── */
+let _recipeCategory = 'all';
+
+function openRecetarioModal() {
+  _recipeCategory = 'all';
+  renderRecetarioModal();
+  document.getElementById('recetarioModal').classList.add('open');
+}
+
+function closeRecetarioModal() {
+  document.getElementById('recetarioModal').classList.remove('open');
+}
+
+function setRecipeCategory(cat) {
+  _recipeCategory = cat;
+  document.querySelectorAll('[id^="rcat-"]').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(`rcat-${cat}`);
+  if (btn) btn.classList.add('active');
+  renderRecetarioModal();
+}
+
+async function renderRecetarioModal() {
+  const list = document.getElementById('recetarioModalList');
+  if (!list) return;
+  list.innerHTML = '<div class="empty-state" style="padding:1.5rem"><div>Cargando…</div></div>';
+
+  const all    = await loadRecetario();
+  const search = (document.getElementById('recipeSearch')?.value || '').toLowerCase();
+  const items  = all.filter(r => {
+    const matchCat  = _recipeCategory === 'all' || r.meal === _recipeCategory || r.categoria === _recipeCategory;
+    const matchText = !search || String(r.nombre).toLowerCase().includes(search)
+                              || String(r.ingredientes || '').toLowerCase().includes(search);
+    return matchCat && matchText;
+  });
+
+  if (!items.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:1.5rem"><div>Sin recetas — ¿agrega la primera?</div></div>';
+    return;
+  }
+
+  list.innerHTML = items.map(r => `
+    <div class="recipe-item">
+      <div class="recipe-item-main">
+        <div class="recipe-item-name">${escHtml(r.nombre)}</div>
+        <div class="recipe-item-detail">
+          ${r.tiempo_min ? `⏱ ${r.tiempo_min}min · ` : ''}
+          Prot ${r.proteina_g || '?'}g · Carbs ${r.carbs_g || '?'}g · Grasa ${r.grasa_g || '?'}g
+          ${r.instrucciones ? `<br><span style="font-style:italic;color:var(--text-3)">${escHtml(String(r.instrucciones).slice(0,80))}…</span>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.3rem;flex-shrink:0">
+        <span class="recipe-item-cal">${r.calorias || '?'} kcal</span>
+        <button class="btn-use-recipe" onclick="loadRecipeIntoForm(${JSON.stringify(r).split('"').join('&quot;')})">Usar</button>
+      </div>
+    </div>`).join('');
+}
+
+function loadRecipeIntoForm(r) {
+  // Fill form from Recetario row
+  document.getElementById('foodName').value = r.nombre || '';
+  if (r.meal) document.getElementById('foodMeal').value = r.meal;
+
+  // Clear ingredient rows
+  document.getElementById('ingredientRows').innerHTML = '';
+  _ingredientIdCounter = 0;
+  Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
+
+  // Parse ingredient list and add rows (plain text, no Sheets lookup)
+  const ingLines = String(r.ingredientes || '').split(',').map(s => s.trim()).filter(Boolean);
+  ingLines.forEach(l => addIngredientRow(l, true));
+
+  // Pre-fill calories
+  if (r.calorias) {
+    const calInput = document.getElementById('foodCalories');
+    if (calInput) calInput.value = r.calorias;
+    const badge = document.getElementById('foodCalBadge');
+    if (badge) { badge.textContent = 'Recetario'; badge.style.display = 'inline-flex'; badge.className = 'calorie-result-badge'; }
+  }
+
+  // Pre-fill macros display
+  if (r.proteina_g || r.carbs_g || r.grasa_g) {
+    document.getElementById('mProtein').textContent = r.proteina_g || 0;
+    document.getElementById('mCarbs').textContent   = r.carbs_g   || 0;
+    document.getElementById('mFat').textContent     = r.grasa_g   || 0;
+    document.getElementById('mFiber').textContent   = 0;
+    const macros = document.getElementById('macrosSummary');
+    if (macros) macros.style.display = 'flex';
+  }
+
+  closeRecetarioModal();
+  showToast(`"${r.nombre}" cargado ✓`, 'success');
+}
+
+/* ── ADD NEW INGREDIENT ──────────────────────────────────────── */
+function openAddIngredientModal() {
+  document.getElementById('addIngredientModal').classList.add('open');
+}
+function closeAddIngredientModal() {
+  document.getElementById('addIngredientModal').classList.remove('open');
+}
+
+async function saveNewIngredient() {
+  const nombre = document.getElementById('ni_nombre').value.trim();
+  const cal    = parseFloat(document.getElementById('ni_cal').value);
+  if (!nombre || isNaN(cal)) {
+    showToast('Nombre y calorías son requeridos', 'error'); return;
+  }
+  if (!CONFIG.scriptUrl) {
+    showToast('Conecta Google Sheets primero en ⚙', 'error'); return;
+  }
+
+  const row = {
+    id:                'user_' + Date.now(),
+    categoria:         document.getElementById('ni_categoria').value,
+    nombre,
+    calorias_100g:     cal,
+    proteina_g:        parseFloat(document.getElementById('ni_prot').value)           || 0,
+    carbs_g:           parseFloat(document.getElementById('ni_carbs').value)          || 0,
+    grasa_g:           parseFloat(document.getElementById('ni_grasa').value)          || 0,
+    fibra_g:           parseFloat(document.getElementById('ni_fibra').value)          || 0,
+    unidad_comun:      document.getElementById('ni_unidad').value.trim()              || '100g',
+    cantidad_comun_g:  parseFloat(document.getElementById('ni_gramos_unidad').value)  || 100,
+    notas:             document.getElementById('ni_notas').value.trim(),
+  };
+
+  const result = await apiCall({ action: 'addIngrediente', row });
+  if (result) {
+    invalidateCache();
+    ['ni_nombre','ni_cal','ni_prot','ni_carbs','ni_grasa','ni_fibra','ni_unidad','ni_gramos_unidad','ni_notas']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    closeAddIngredientModal();
+    showToast(`"${nombre}" guardado en Ingredientes ✓`, 'success');
+  } else {
+    showToast('Error al guardar — revisa la conexión', 'error');
+  }
+}
+
+/* ── ADD NEW RECIPE ──────────────────────────────────────────── */
+function openAddRecipeModal() {
+  document.getElementById('addRecipeModal').classList.add('open');
+}
+function closeAddRecipeModal() {
+  document.getElementById('addRecipeModal').classList.remove('open');
+}
+
+async function saveNewRecipe() {
+  const nombre = document.getElementById('nr_nombre').value.trim();
+  const cal    = parseFloat(document.getElementById('nr_cal').value);
+  if (!nombre || isNaN(cal)) {
+    showToast('Nombre y calorías son requeridos', 'error'); return;
+  }
+  if (!CONFIG.scriptUrl) {
+    showToast('Conecta Google Sheets primero en ⚙', 'error'); return;
+  }
+
+  const meal = document.getElementById('nr_meal').value;
+  const row  = {
+    id:           'user_' + Date.now(),
+    categoria:    meal,
+    nombre,
+    tiempo_min:   parseFloat(document.getElementById('nr_tiempo').value)      || 0,
+    calorias:     cal,
+    proteina_g:   parseFloat(document.getElementById('nr_prot').value)        || 0,
+    carbs_g:      parseFloat(document.getElementById('nr_carbs').value)       || 0,
+    grasa_g:      parseFloat(document.getElementById('nr_grasa').value)       || 0,
+    porciones:    parseFloat(document.getElementById('nr_porciones').value)   || 1,
+    ingredientes: document.getElementById('nr_ingredientes').value.trim(),
+    instrucciones:document.getElementById('nr_instrucciones').value.trim(),
+    meal,
+    notas:        document.getElementById('nr_notas').value.trim(),
+  };
+
+  const result = await apiCall({ action: 'addReceta', row });
+  if (result) {
+    invalidateCache();
+    ['nr_nombre','nr_cal','nr_tiempo','nr_prot','nr_carbs','nr_grasa','nr_ingredientes','nr_instrucciones','nr_notas']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.getElementById('nr_porciones').value = '1';
+    closeAddRecipeModal();
+    showToast(`"${nombre}" guardado en Recetario ✓`, 'success');
+  } else {
+    showToast('Error al guardar — revisa la conexión', 'error');
+  }
+}
+
+/* ── RECETARIO (legacy panel — kept for saveCurrentAsRecipe) ─── */
+function toggleRecetario() { openRecetarioModal(); }
+function renderRecetario()  { renderRecetarioModal(); }
+
+function saveCurrentAsRecipe() {
+  openAddRecipeModal();
+  // Pre-fill name and ingredients from current form
+  const name = document.getElementById('foodName')?.value.trim();
+  const lines = getIngredientLines();
+  const cal   = document.getElementById('foodCalories')?.value;
+  if (name) document.getElementById('nr_nombre').value = name;
+  if (lines.length) document.getElementById('nr_ingredientes').value = lines.join(', ');
+  if (cal)  document.getElementById('nr_cal').value = cal;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2807,7 +2873,7 @@ function renderSyncBlock() {
         <span class="sync-lock-icon">🔒</span>
         <div>
           <div class="sync-lock-title">Claves configuradas via CI/CD</div>
-          <div class="sync-lock-sub">La Apps Script URL y API Ninjas key fueron inyectadas de forma segura al despliegue. No son visibles ni editables desde la app.</div>
+          <div class="sync-lock-sub">La Apps Script URL fue inyectada de forma segura al despliegue. Los datos de Ingredientes y Recetario viven en tu Google Sheet.</div>
         </div>
       </div>`;
   } else {
@@ -2815,22 +2881,14 @@ function renderSyncBlock() {
       <div class="config-banner">
         <strong>🔗 Google Sheets:</strong> URL de Apps Script para sincronización.
         <br><br>
-        <strong>🥗 API Ninjas:</strong> una key para nutrición, recetas, ejercicios y calorías quemadas. Sin key se usa estimación local (MET + heurística).
+        Los datos de Ingredientes y Recetario viven en el Google Sheet — comparte con todos los perfiles automáticamente.
       </div>
       <div class="form-group">
         <label>URL Google Apps Script</label>
         <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec"
           value="${CONFIG.scriptUrl}" />
       </div>
-      <button class="btn-secondary" style="margin-top:0;margin-bottom:.75rem;" onclick="testConnection()">Probar conexión Sheets</button>
-      <div class="form-group" style="margin-bottom:.25rem">
-        <label>API Ninjas Key</label>
-        <input type="password" id="anApiKey" placeholder="••••••••••••••••••••••••••••••••"
-          value="${CONFIG.apiNinjasKey}" />
-      </div>
-      <div class="field-hint" style="margin-bottom:1.25rem">
-        Obtén tu key en <a href="https://api-ninjas.com/profile" target="_blank" style="color:var(--lime)">api-ninjas.com/profile</a> — plan gratuito disponible
-      </div>`;
+      <button class="btn-secondary" style="margin-top:0;margin-bottom:1.25rem;" onclick="testConnection()">Probar conexión Sheets</button>`;
   }
 }
 function openSettings() {
@@ -2890,11 +2948,7 @@ async function saveSettings() {
       CONFIG.scriptUrl = url;
       localStorage.setItem('vita_scriptUrl', url);
     }
-    const anEl = document.getElementById('anApiKey');
-    if (anEl) {
-      CONFIG.apiNinjasKey = anEl.value.trim();
-      localStorage.setItem('vita_anKey', CONFIG.apiNinjasKey);
-    }
+
   }
 
   if (CONFIG.scriptUrl) {
@@ -2938,6 +2992,12 @@ function showToast(msg, type = 'success') {
 /* ── CLOSE MODAL ON OVERLAY CLICK ───────────────────────────── */
 document.getElementById('settingsModal').addEventListener('click', function(e) {
   if (e.target === this) closeSettings();
+});
+['recetarioModal','addIngredientModal','addRecipeModal'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('open');
+  });
 });
 
 /* ═══════════════════════════════════════════════════════════════
