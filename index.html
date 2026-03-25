@@ -2213,19 +2213,24 @@ function calcIngCalories(row, factor) {
 }
 
 function calcIngMacros(row, factor) {
-  const g = row._fixedCal != null
-    ? factor  // for products: factor is number of units, g-multiplier = 1
-    : (Number(row.cantidad_comun_g) || 100) * factor / 100;
-  const scale = row._fixedCal != null ? factor : (Number(row.cantidad_comun_g) || 100) * factor / 100;
-  const g2 = (Number(row.cantidad_comun_g) || 100) * factor;
+  if (row._fixedCal != null) {
+    // Product: values are already per-presentation unit — just multiply by qty
+    return {
+      calories:              Math.round((row._fixedCal          || 0) * factor),
+      protein_g:             Math.round((Number(row.proteina_g) || 0) * factor * 10) / 10,
+      carbohydrates_total_g: Math.round((Number(row.carbs_g)    || 0) * factor * 10) / 10,
+      fat_total_g:           Math.round((Number(row.grasa_g)    || 0) * factor * 10) / 10,
+      fiber_g:               Math.round((Number(row.fibra_g)    || 0) * factor * 10) / 10,
+    };
+  }
+  // Ingredient: scale by grams per portion × qty / 100
+  const g = (Number(row.cantidad_comun_g) || 100) * factor;
   return {
-    calories:              row._fixedCal != null
-                             ? Math.round(row._fixedCal * factor)
-                             : Math.round((Number(row.calorias_100g) || 0) / 100 * g2),
-    protein_g:             Math.round((Number(row.proteina_g)    || 0) / 100 * g * 10) / 10,
-    carbohydrates_total_g: Math.round((Number(row.carbs_g)       || 0) / 100 * g * 10) / 10,
-    fat_total_g:           Math.round((Number(row.grasa_g)       || 0) / 100 * g * 10) / 10,
-    fiber_g:               Math.round((Number(row.fibra_g)       || 0) / 100 * g * 10) / 10,
+    calories:              Math.round((Number(row.calorias_100g) || 0) / 100 * g),
+    protein_g:             Math.round((Number(row.proteina_g)   || 0) / 100 * g * 10) / 10,
+    carbohydrates_total_g: Math.round((Number(row.carbs_g)      || 0) / 100 * g * 10) / 10,
+    fat_total_g:           Math.round((Number(row.grasa_g)      || 0) / 100 * g * 10) / 10,
+    fiber_g:               Math.round((Number(row.fibra_g)      || 0) / 100 * g * 10) / 10,
   };
 }
 
@@ -2325,26 +2330,26 @@ async function _searchIngSheet(rowId, query) {
 
   // Ingredientes matches (base foods)
   const ingHits = ings.filter(r =>
-    String(r.nombre).toLowerCase().includes(q) ||
-    String(r.categoria).toLowerCase().includes(q)
-  ).slice(0, 5).map(r => ({
-    label: `<span style="color:var(--text-2);font-size:.65rem">${r.categoria}</span> ` +
-           `<strong>${r.nombre}</strong> ` +
-           `<span style="color:var(--lime);font-size:.72rem">${r.calorias_100g} kcal/100g</span>` +
-           `<span style="color:var(--text-3);font-size:.65rem"> · ${r.unidad_comun||''}</span>`,
+    String(r.nombre || '').toLowerCase().includes(q) ||
+    String(r.categoria || '').toLowerCase().includes(q)
+  ).slice(0, 4).map(r => ({
+    label: `<span style="color:var(--text-2);font-size:.63rem;margin-right:.3rem">${r.categoria || ''}</span>` +
+           `<strong>${r.nombre || ''}</strong> ` +
+           `<span style="color:var(--lime);font-size:.7rem">${Number(r.calorias_100g) || '?'} kcal/100g</span>` +
+           `<span style="color:var(--text-3);font-size:.63rem"> · ${r.unidad_comun || ''}</span>`,
     data: { _type: 'ing', ...r }
   }));
 
-  // Productos matches (packaged/fast food)
+  // Productos matches (packaged / fast food) — show with 📦 prefix and amber brand
   const prodHits = prods.filter(r =>
-    String(r.nombre).toLowerCase().includes(q) ||
+    String(r.nombre || '').toLowerCase().includes(q) ||
     String(r.marca  || '').toLowerCase().includes(q) ||
-    String(r.categoria).toLowerCase().includes(q)
-  ).slice(0, 5).map(r => ({
-    label: `<span style="color:var(--amber);font-size:.65rem">${r.marca || r.categoria}</span> ` +
-           `<strong>${r.nombre}</strong> ` +
-           `<span style="color:var(--lime);font-size:.72rem">${r.calorias} kcal</span>` +
-           `<span style="color:var(--text-3);font-size:.65rem"> · ${r.presentacion||''}</span>`,
+    String(r.categoria || '').toLowerCase().includes(q)
+  ).slice(0, 4).map(r => ({
+    label: `<span style="color:var(--amber);font-size:.63rem;margin-right:.3rem">📦 ${r.marca || r.categoria || ''}</span>` +
+           `<strong>${r.nombre || ''}</strong> ` +
+           `<span style="color:var(--amber);font-size:.7rem">${Number(r.calorias) || '?'} kcal</span>` +
+           `<span style="color:var(--text-3);font-size:.63rem"> · ${r.presentacion || ''}</span>`,
     data: { _type: 'prod', ...r }
   }));
 
@@ -2378,24 +2383,26 @@ async function _searchIngSheet(rowId, query) {
 
 function selectIngredientFromSheet(rowId, row) {
   const inp = document.getElementById(`ing-${rowId}`);
-  if (inp) inp.value = row.marca ? `${row.marca} ${row.nombre}` : row.nombre;
+  if (inp) inp.value = isProduct
+    ? [row.marca, row.nombre].filter(Boolean).join(' ')
+    : (row.nombre || '');
   hideDropdown(`ing-ac-${rowId}`);
 
   // Normalize to common schema regardless of source type
   const isProduct = row._type === 'prod';
   const normalized = isProduct
     ? {
-        // Map Productos fields to Ingredientes schema
-        nombre:          `${row.marca || ''} ${row.nombre}`.trim(),
-        calorias_100g:   row.calorias,   // already per porcion
-        proteina_g:      row.proteina_g || 0,
-        carbs_g:         row.carbs_g    || 0,
-        grasa_g:         row.grasa_g    || 0,
-        fibra_g:         row.fibra_g    || 0,
-        unidad_comun:    row.presentacion || '1 porcion',
-        cantidad_comun_g: row.porcion_g  || 100,
-        _isProduct:      true,
-        _fixedCal:       row.calorias,   // exact kcal for this porcion
+        nombre:           ([row.marca, row.nombre].filter(Boolean).join(' ')).trim() || 'Producto',
+        calorias_100g:    Number(row.calorias)    || 0,
+        proteina_g:       Number(row.proteina_g)  || 0,
+        carbs_g:          Number(row.carbs_g)     || 0,
+        grasa_g:          Number(row.grasa_g)     || 0,
+        fibra_g:          Number(row.fibra_g)     || 0,
+        azucar_g:         Number(row.azucar_g)    || 0,
+        unidad_comun:     row.presentacion        || '1 porcion',
+        cantidad_comun_g: Number(row.porcion_g)   || 100,
+        _isProduct:       true,
+        _fixedCal:        Number(row.calorias)    || 0,
       }
     : row;
 
