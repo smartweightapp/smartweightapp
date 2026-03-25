@@ -6,7 +6,6 @@
 #
 #    APPS_SCRIPT_URL        → Full URL of your deployed Google Apps Script
 #                             e.g. https://script.google.com/macros/s/AKfy.../exec
-#    API_NINJAS_KEY → API key from api-ninjas.com/profile (free plan available)
 #
 #  OPTIONAL SECRETS (extend as needed):
 #    PROFILE_A_NAME  or PROFILE_NAME_A  → Display name for User A (default: "Usuario A")
@@ -69,18 +68,9 @@ jobs:
       - name: Inject secrets into index.html
         env:
           APPS_SCRIPT_URL:       ${{ secrets.APPS_SCRIPT_URL }}
-          API_NINJAS_KEY: ${{ secrets.API_NINJAS_KEY }}
         run: |
           sed "s|__APPS_SCRIPT_URL__|${APPS_SCRIPT_URL}|g" index.html > dist/index.html
           echo "✓ Token __APPS_SCRIPT_URL__ substituted"
-          # API Ninjas: optional — app falls back to MET/heuristic if not set
-          if [ -n "$API_NINJAS_KEY" ]; then
-            sed -i "s|__API_NINJAS_KEY__|${API_NINJAS_KEY}|g" dist/index.html
-            echo "✓ Token __API_NINJAS_KEY__ substituted"
-          else
-            sed -i "s|__API_NINJAS_KEY__||g" dist/index.html
-            echo "ℹ API_NINJAS_KEY not set — app will use MET/heuristic fallback"
-          fi
 
       # ── 5. Inject optional profile names ──────────────────────
       - name: Inject optional profile names
@@ -124,9 +114,6 @@ jobs:
             FAILED=1
           fi
           # Nutritionix tokens are OPTIONAL — warn but do not fail
-          if grep -q "__API_NINJAS_KEY__" dist/index.html; then
-            echo "::warning::API_NINJAS_KEY not replaced — calorie estimation will use MET/heuristic fallback"
-          fi
           if [ "$FAILED" -eq 1 ]; then exit 1; fi
           if grep -qE "script\.google\.com/macros/s/[A-Za-z0-9_-]{10,}" dist/index.html; then
             echo "::notice::Apps Script URL present in artifact (expected — injected from secret)."
@@ -162,5 +149,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🌐 **URL:** ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
           echo "🔒 **Apps Script URL:** injected from secret (not visible in source)" >> $GITHUB_STEP_SUMMARY
-          echo "🥗 **API Ninjas:** ${{ secrets.API_NINJAS_KEY != '' && 'configured' || 'not set — using MET fallback' }}" >> $GITHUB_STEP_SUMMARY
           echo "📅 **Deployed at:** $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
