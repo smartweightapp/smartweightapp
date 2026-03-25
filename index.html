@@ -1862,8 +1862,17 @@ async function syncAllEntries(user) {
   try {
     const data = await apiGet({ action: 'getAllEntries', user });
     if (data) {
-      if (data.foods)     state.foods[user]     = data.foods;
-      if (data.exercises) state.exercises[user] = data.exercises;
+      if (data.foods) {
+        // Merge: keep any local-only entries not yet in Sheets (by id)
+        const sheetsIds = new Set(data.foods.map(f => f.id));
+        const localOnly = state.foods[user].filter(f => !sheetsIds.has(f.id));
+        state.foods[user] = [...data.foods, ...localOnly];
+      }
+      if (data.exercises) {
+        const sheetsIds = new Set(data.exercises.map(e => e.id));
+        const localOnly = state.exercises[user].filter(e => !sheetsIds.has(e.id));
+        state.exercises[user] = [...data.exercises, ...localOnly];
+      }
       saveEntriesToStorage(user);
     }
   } catch (e) {
@@ -3236,6 +3245,305 @@ async function fetchSheetRecipes(user) {
 }
 
 /* ── INIT ───────────────────────────────────────────────────── */
+/* ── DATE NAVIGATION ────────────────────────────────────────── */
+function changeDate(delta) {
+  const d = new Date(state.selectedDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  const nd = d.toISOString().split('T')[0];
+  if (nd > state.today) return;
+  setSelectedDate(nd);
+}
+
+function onDatePickerChange(e) {
+  const val = e.target.value;
+  if (val && val <= state.today) setSelectedDate(val);
+}
+
+function setSelectedDate(date) {
+  state.selectedDate = date;
+  renderDateBar();
+  renderAll();
+  if (CONFIG.scriptUrl) {
+    setSyncStatus('syncing');
+    syncTodayEntries(state.profile, date).then(() => {
+      setSyncStatus('online');
+      renderAll();
+    });
+  }
+}
+
+function renderDateBar() {
+  const opts = { weekday:'short', year:'numeric', month:'short', day:'numeric' };
+  const sel  = state.selectedDate;
+  document.getElementById('dateDisplay').textContent =
+    new Date(sel + 'T12:00:00').toLocaleDateString('es-MX', opts);
+  document.getElementById('profileNameDisplay').textContent =
+    state.profiles[state.profile].name;
+  const dp = document.getElementById('datePicker');
+  if (dp) dp.value = sel;
+  const badge = document.getElementById('dateTodayBadge');
+  if (badge) badge.style.display = sel === state.today ? 'inline-flex' : 'none';
+  const btns = document.querySelectorAll('.date-nav-btn');
+  if (btns[1]) btns[1].style.opacity = sel === state.today ? '0.3' : '1';
+}
+
+/* ── MEASUREMENTS TAB ───────────────────────────────────────── */
+function setMMetric(metric) {
+  state.mMetric = metric;
+  document.querySelectorAll('[id^="mmetric-"]').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('mmetric-' + metric);
+  if (btn) btn.classList.add('active');
+  renderMedidas();
+}
+
+async function saveMeasurement() {
+  const weight = parseFloat(document.getElementById('mWeight').value) || null;
+  const waist  = parseFloat(document.getElementById('mWaist').value)  || null;
+  const hip    = parseFloat(document.getElementById('mHip').value)    || null;
+  const neck   = parseFloat(document.getElementById('mNeck').value)   || null;
+  const arm    = parseFloat(document.getElementById('mArm').value)    || null;
+  const thigh  = parseFloat(document.getElementById('mThigh').value)  || null;
+  const note   = document.getElementById('mNote').value.trim();
+
+  if (!weight && !waist && !hip) {
+    showToast('Ingresa al menos peso o cintura', 'error'); return;
+  }
+  const entry = { id: Date.now().toString(), date: state.selectedDate,
+                  weight, waist, hip, neck, arm, thigh, note };
+  state.measurements[state.profile].push(entry);
+  saveMeasurementsToStorage(state.profile);
+  if (weight) {
+    state.profiles[state.profile].weight = weight;
+    saveProfileToStorage(state.profile, state.profiles[state.profile]);
+    if (CONFIG.scriptUrl) pushProfile(state.profile, state.profiles[state.profile]);
+  }
+  if (CONFIG.scriptUrl) apiCall({ action: 'saveMeasurement', user: state.profile, entry });
+  ['mWeight','mWaist','mHip','mNeck','mArm','mThigh','mNote']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  renderMedidas();
+  renderDashboard();
+  showToast('Medidas guardadas ✓', 'success');
+}
+
+function deleteMeasurement(id) {
+  state.measurements[state.profile] = state.measurements[state.profile].filter(e => e.id !== id);
+  saveMeasurementsToStorage(state.profile);
+  if (CONFIG.scriptUrl) apiCall({ action: 'deleteMeasurement', user: state.profile, id });
+  renderMedidas();
+}
+
+function renderMedidas() {
+  const all = (state.measurements[state.profile] || [])
+    .slice().sort((a, b) => a.date.localeCompare(b.date));
+  const metric    = state.mMetric || 'peso';
+  const chartWrap = document.getElementById('measChartWrap');
+  const prof      = state.profiles[state.profile];
+
+  const getValue = (entry) => {
+    if (metric === 'peso')    return entry.weight;
+    if (metric === 'cintura') return entry.waist;
+    if (metric === 'imc')     return entry.weight && prof.height
+      ? parseFloat((entry.weight / Math.pow(prof.height/100, 2)).toFixed(1)) : null;
+    if (metric === 'grasa') {
+      if (!entry.waist || !entry.neck || !prof.height) return null;
+      if (prof.sex === 'male')
+        return parseFloat((495/(1.0324-0.19077*Math.log10(entry.waist-entry.neck)+0.15456*Math.log10(prof.height))-450).toFixed(1));
+      if (!entry.hip) return null;
+      return parseFloat((495/(1.29579-0.35004*Math.log10(entry.waist+entry.hip-entry.neck)+0.22100*Math.log10(prof.height))-450).toFixed(1));
+    }
+    return null;
+  };
+
+  const points = all.map(e => ({ date: e.date, val: getValue(e) })).filter(p => p.val != null);
+  if (points.length >= 2) {
+    if (chartWrap) chartWrap.style.display = 'block';
+    drawLineChart('measChart', points, ['#7DF9FF'], [metric],
+      { unit: metric === 'grasa' ? '%' : (metric === 'imc' ? '' : 'kg/cm') });
+  } else {
+    if (chartWrap) chartWrap.style.display = 'none';
+  }
+
+  const container = document.getElementById('measHistory');
+  if (!container) return;
+  if (!all.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📏</div><div>Sin medidas registradas</div></div>';
+    return;
+  }
+  const fieldMap = { weight:'Peso', waist:'Cintura', hip:'Cadera', neck:'Cuello', arm:'Brazo', thigh:'Muslo' };
+  container.innerHTML = all.slice().reverse().map(e => {
+    const chips = Object.entries(fieldMap).filter(([k]) => e[k])
+      .map(([k,label]) => {
+        const unit = k === 'weight' ? 'kg' : 'cm';
+        const hi   = (metric === 'peso' && k === 'weight') || (metric === 'cintura' && k === 'waist');
+        return `<span class="meas-chip${hi ? ' highlight' : ''}">${label}: ${e[k]}${unit}</span>`;
+      }).join('');
+    const dl = new Date(e.date + 'T12:00:00').toLocaleDateString('es-MX',
+      { day:'numeric', month:'short', year:'numeric' });
+    return `
+      <div class="meas-entry">
+        <div>
+          <div class="meas-date">${dl}</div>
+          ${e.note ? `<div style="font-size:.7rem;color:var(--text-2);margin-top:.1rem">${escHtml(e.note)}</div>` : ''}
+        </div>
+        <div class="meas-values">${chips}</div>
+        <button class="btn-delete" onclick="deleteMeasurement('${e.id}')" title="Eliminar">✕</button>
+      </div>`;
+  }).join('');
+}
+
+function saveMeasurementsToStorage(user) {
+  localStorage.setItem('vita_measurements_' + user, JSON.stringify(state.measurements[user] || []));
+}
+
+/* ── SETTINGS MODAL ─────────────────────────────────────────── */
+function openSettings() {
+  renderSyncBlock();
+  loadSettingsForm(state.settingsProfile);
+  document.getElementById('settingsModal').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('open');
+}
+
+function switchSettingsProfile(user) {
+  state.settingsProfile = user;
+  document.querySelectorAll('.profile-tab-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('ptab-' + user);
+  if (btn) btn.classList.add('active');
+  loadSettingsForm(user);
+}
+
+function loadSettingsForm(user) {
+  const prof = state.profiles[user];
+  const nameEl = document.getElementById('sName');
+  if (nameEl) nameEl.value = prof.nameOverride || '';
+  ['sSex','sAge','sWeight','sHeight','sActivity'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (id === 'sSex')      el.value = prof.sex      || 'male';
+    if (id === 'sAge')      el.value = prof.age       || '';
+    if (id === 'sWeight')   el.value = prof.weight    || '';
+    if (id === 'sHeight')   el.value = prof.height    || '';
+    if (id === 'sActivity') el.value = prof.activity  || 1.55;
+  });
+}
+
+async function saveSettings() {
+  const user = state.settingsProfile;
+  const typedName    = document.getElementById('sName')?.value.trim();
+  const nameOverride = (typedName && typedName !== PROFILE_NAMES[user]) ? typedName : '';
+  const profile = {
+    name:         nameOverride || PROFILE_NAMES[user],
+    nameOverride,
+    sex:          document.getElementById('sSex')?.value      || 'male',
+    age:          parseInt(document.getElementById('sAge')?.value)    || 0,
+    weight:       parseFloat(document.getElementById('sWeight')?.value)  || 0,
+    height:       parseFloat(document.getElementById('sHeight')?.value)  || 0,
+    activity:     parseFloat(document.getElementById('sActivity')?.value) || 1.55,
+    configured:   true
+  };
+  state.profiles[user] = { ...state.profiles[user], ...profile };
+  saveProfileToStorage(user, state.profiles[user]);
+
+  if (!CONFIG.isPreconfigured) {
+    const urlEl = document.getElementById('scriptUrl');
+    if (urlEl) {
+      CONFIG.scriptUrl = urlEl.value.trim();
+      localStorage.setItem('vita_scriptUrl', CONFIG.scriptUrl);
+    }
+  }
+  if (CONFIG.scriptUrl) await pushProfile(user, profile);
+  closeSettings();
+  renderAll();
+  showToast('Perfil ' + user + ' guardado ✓', 'success');
+}
+
+async function testConnection() {
+  const urlEl = document.getElementById('scriptUrl');
+  const url   = urlEl ? urlEl.value.trim() : CONFIG.scriptUrl;
+  if (!url) { showToast('Ingresa una URL primero', 'error'); return; }
+  showToast('Probando conexión…', 'loading');
+  const prev = CONFIG.scriptUrl;
+  CONFIG.scriptUrl = url;
+  const result = await apiGet({ action: 'ping' });
+  CONFIG.scriptUrl = prev || url;
+  if (result && result.status === 'ok') {
+    showToast('Conexión exitosa ✓', 'success');
+  } else {
+    showToast('No se pudo conectar. Verifica la URL.', 'error');
+  }
+}
+
+function renderSyncBlock() {
+  const el = document.getElementById('syncConfigBlock');
+  if (!el) return;
+  if (CONFIG.isPreconfigured) {
+    el.innerHTML = `
+      <div class="sync-locked-banner">
+        <span class="sync-lock-icon">🔒</span>
+        <div>
+          <div class="sync-lock-title">Claves configuradas via CI/CD</div>
+          <div class="sync-lock-sub">La Apps Script URL fue inyectada de forma segura al despliegue. Los datos de Ingredientes y Recetario viven en tu Google Sheet.</div>
+        </div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="config-banner">
+        <strong>🔗 Google Sheets:</strong> URL de Apps Script para sincronización.
+        Los datos de Ingredientes y Recetario se comparten entre perfiles automáticamente.
+      </div>
+      <div class="form-group">
+        <label>URL Google Apps Script</label>
+        <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec"
+          value="${CONFIG.scriptUrl}" />
+      </div>
+      <button class="btn-secondary" style="margin-top:0;margin-bottom:1.25rem;" onclick="testConnection()">Probar conexión Sheets</button>`;
+  }
+}
+
+/* ── RECIPE HELPERS ─────────────────────────────────────────── */
+function deleteRecipe(idx) {
+  const recipes = state.recipes[state.profile];
+  const r = recipes.splice(idx, 1)[0];
+  saveRecipesToStorage(state.profile);
+  if (CONFIG.scriptUrl && r) apiCall({ action: 'deleteRecipe', user: state.profile, id: r.id });
+  renderRecetarioModal();
+}
+
+function useRecipe(idx) {
+  const r = state.recipes[state.profile][idx];
+  if (r) loadRecipeIntoForm(r);
+}
+
+function saveRecipesToStorage(user) {
+  localStorage.setItem('vita_recipes_' + user, JSON.stringify(state.recipes[user] || []));
+}
+
+/* ── TOAST ──────────────────────────────────────────────────── */
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  clearTimeout(toastTimer);
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  toastTimer = setTimeout(() => { el.className = ''; }, 2800);
+}
+
+/* ── CLOSE MODALS ON OVERLAY CLICK ─────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('settingsModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeSettings();
+  });
+  ['recetarioModal','addIngredientModal','addRecipeModal'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('open');
+    });
+  });
+});
+
+
 async function init() {
   // 1. Load localStorage immediately — render right away with cached data
   loadEntriesFromStorage('A');
