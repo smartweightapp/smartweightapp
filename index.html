@@ -2329,29 +2329,36 @@ async function _searchIngSheet(rowId, query) {
   const [ings, prods] = await Promise.all([loadIngredientes(), loadProductos()]);
 
   // Ingredientes matches (base foods)
-  const ingHits = ings.filter(r =>
-    String(r.nombre || '').toLowerCase().includes(q) ||
-    String(r.categoria || '').toLowerCase().includes(q)
-  ).slice(0, 4).map(r => ({
-    label: `<span style="color:var(--text-2);font-size:.63rem;margin-right:.3rem">${r.categoria || ''}</span>` +
-           `<strong>${r.nombre || ''}</strong> ` +
-           `<span style="color:var(--lime);font-size:.7rem">${Number(r.calorias_100g) || '?'} kcal/100g</span>` +
-           `<span style="color:var(--text-3);font-size:.63rem"> · ${r.unidad_comun || ''}</span>`,
-    data: { _type: 'ing', ...r }
-  }));
+  // Ingredientes: must have calorias_100g (number) — guards against product rows sneaking in
+  const ingHits = ings
+    .filter(r =>
+      r.calorias_100g !== undefined && r.calorias_100g !== '' && r.nombre &&
+      (String(r.nombre).toLowerCase().includes(q) ||
+       String(r.categoria || '').toLowerCase().includes(q))
+    ).slice(0, 4)
+    .map(r => ({
+      label: `<span style="color:var(--text-2);font-size:.63rem;margin-right:.3rem">${r.categoria || ''}</span>` +
+             `<strong>${r.nombre}</strong> ` +
+             `<span style="color:var(--lime);font-size:.7rem">${r.calorias_100g} kcal/100g</span>` +
+             `<span style="color:var(--text-3);font-size:.63rem"> · ${r.unidad_comun || ''}</span>`,
+      data: { _type: 'ing', ...r }
+    }));
 
-  // Productos matches (packaged / fast food) — show with 📦 prefix and amber brand
-  const prodHits = prods.filter(r =>
-    String(r.nombre || '').toLowerCase().includes(q) ||
-    String(r.marca  || '').toLowerCase().includes(q) ||
-    String(r.categoria || '').toLowerCase().includes(q)
-  ).slice(0, 4).map(r => ({
-    label: `<span style="color:var(--amber);font-size:.63rem;margin-right:.3rem">📦 ${r.marca || r.categoria || ''}</span>` +
-           `<strong>${r.nombre || ''}</strong> ` +
-           `<span style="color:var(--amber);font-size:.7rem">${Number(r.calorias) || '?'} kcal</span>` +
-           `<span style="color:var(--text-3);font-size:.63rem"> · ${r.presentacion || ''}</span>`,
-    data: { _type: 'prod', ...r }
-  }));
+  // Productos: must have calorias (number) and presentacion — guards against ingredient rows
+  const prodHits = prods
+    .filter(r =>
+      r.calorias !== undefined && r.calorias !== '' && r.nombre &&
+      (String(r.nombre).toLowerCase().includes(q) ||
+       String(r.marca  || '').toLowerCase().includes(q) ||
+       String(r.categoria || '').toLowerCase().includes(q))
+    ).slice(0, 4)
+    .map(r => ({
+      label: `<span style="color:var(--amber);font-size:.63rem;margin-right:.3rem">📦 ${r.marca || r.categoria || ''}</span>` +
+             `<strong>${r.nombre}</strong> ` +
+             `<span style="color:var(--amber);font-size:.7rem">${r.calorias} kcal</span>` +
+             `<span style="color:var(--text-3);font-size:.63rem"> · ${r.presentacion || ''}</span>`,
+      data: { _type: 'prod', ...r }
+    }));
 
   const hits = [...ingHits, ...prodHits].slice(0, 8);
 
