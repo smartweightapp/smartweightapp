@@ -1843,21 +1843,20 @@ async function syncTodayEntries(user, date) {
   const d    = date || state.selectedDate;
   const data = await apiGet({ action: 'getEntries', user, date: d });
   if (data) {
-    // Merge received entries into local store (don't overwrite other dates)
     if (data.foods) {
-      const other = state.foods[user].filter(f => f.date !== d);
-      state.foods[user] = [...other, ...data.foods];
+      const normalized = data.foods.map(f => ({ ...f, date: sanitizeDate(f.date) }));
+      const other      = state.foods[user].filter(f => f.date !== d);
+      state.foods[user] = [...other, ...normalized];
     }
     if (data.exercises) {
-      const other = state.exercises[user].filter(e => e.date !== d);
-      state.exercises[user] = [...other, ...data.exercises];
+      const normalized = data.exercises.map(e => ({ ...e, date: sanitizeDate(e.date) }));
+      const other      = state.exercises[user].filter(e => e.date !== d);
+      state.exercises[user] = [...other, ...normalized];
     }
     if (data.measurements) {
-      state.measurements[user] = data.measurements;
+      state.measurements[user] = data.measurements.map(m => ({ ...m, date: sanitizeDate(m.date) }));
     }
-    if (data.recipes) {
-      state.recipes[user] = data.recipes;
-    }
+    if (data.recipes) state.recipes[user] = data.recipes;
     saveEntriesToStorage(user);
   }
 }
@@ -1869,15 +1868,16 @@ async function syncAllEntries(user) {
     const data = await apiGet({ action: 'getAllEntries', user });
     if (data) {
       if (data.foods) {
-        // Merge: keep any local-only entries not yet in Sheets (by id)
-        const sheetsIds = new Set(data.foods.map(f => f.id));
-        const localOnly = state.foods[user].filter(f => !sheetsIds.has(f.id));
-        state.foods[user] = [...data.foods, ...localOnly];
+        const normalized = data.foods.map(f => ({ ...f, date: sanitizeDate(f.date) }));
+        const sheetsIds  = new Set(normalized.map(f => String(f.id)));
+        const localOnly  = state.foods[user].filter(f => !sheetsIds.has(String(f.id)));
+        state.foods[user] = [...normalized, ...localOnly];
       }
       if (data.exercises) {
-        const sheetsIds = new Set(data.exercises.map(e => e.id));
-        const localOnly = state.exercises[user].filter(e => !sheetsIds.has(e.id));
-        state.exercises[user] = [...data.exercises, ...localOnly];
+        const normalized = data.exercises.map(e => ({ ...e, date: sanitizeDate(e.date) }));
+        const sheetsIds  = new Set(normalized.map(e => String(e.id)));
+        const localOnly  = state.exercises[user].filter(e => !sheetsIds.has(String(e.id)));
+        state.exercises[user] = [...normalized, ...localOnly];
       }
       saveEntriesToStorage(user);
     }
@@ -2897,8 +2897,8 @@ function renderAll() {
 /* ── RENDER DASHBOARD ───────────────────────────────────────── */
 function renderDashboard() {
   const prof   = state.profiles[state.profile];
-  const todayFoods = state.foods[state.profile].filter(f => f.date === state.selectedDate);
-  const todayEx    = state.exercises[state.profile].filter(e => e.date === state.selectedDate);
+  const todayFoods = state.foods[state.profile].filter(f => sanitizeDate(f.date) === state.selectedDate);
+  const todayEx    = state.exercises[state.profile].filter(e => sanitizeDate(e.date) === state.selectedDate);
   const calsIn     = todayFoods.reduce((s,f) => s + (f.totalCalories || f.calories), 0);
   const calsBurned = todayEx.reduce((s,e) => s + e.caloriesBurned, 0);
 
@@ -2963,7 +2963,7 @@ function renderDashboard() {
 /* ── RENDER FOOD LIST ───────────────────────────────────────── */
 function renderFoodList() {
   const list   = document.getElementById('todayFoodList');
-  const today  = state.foods[state.profile].filter(f => f.date === state.selectedDate);
+  const today  = state.foods[state.profile].filter(f => sanitizeDate(f.date) === state.selectedDate);
   if (!today.length) {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon">🍽️</div><div>Sin comidas registradas hoy</div></div>`;
     return;
@@ -2983,7 +2983,7 @@ function renderFoodList() {
 /* ── RENDER EXERCISE LIST ───────────────────────────────────── */
 function renderExerciseList() {
   const list  = document.getElementById('todayExList');
-  const today = state.exercises[state.profile].filter(e => e.date === state.selectedDate);
+  const today = state.exercises[state.profile].filter(e => sanitizeDate(e.date) === state.selectedDate);
   if (!today.length) {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div><div>Sin ejercicios registrados hoy</div></div>`;
     return;
@@ -3028,8 +3028,12 @@ function renderHistorial() {
   if (!container) return;
 
   const { from, to } = getDateRange(state.period);
-  const allFoods = state.foods[state.profile].filter(f => f.date >= from && f.date <= to);
-  const allEx    = state.exercises[state.profile].filter(e => e.date >= from && e.date <= to);
+  const allFoods = state.foods[state.profile]
+    .map(f => ({ ...f, date: sanitizeDate(f.date) }))
+    .filter(f => f.date >= from && f.date <= to);
+  const allEx = state.exercises[state.profile]
+    .map(e => ({ ...e, date: sanitizeDate(e.date) }))
+    .filter(e => e.date >= from && e.date <= to);
 
   // ── Calorie chart ──────────────────────────────────────────────
   const chartWrap = document.getElementById('chartWrap');
@@ -3111,7 +3115,7 @@ function renderHistorial() {
 
 function jumpToDate(date) {
   // Set date immediately and switch tab — no waiting for Sheets
-  state.selectedDate = date;
+  state.selectedDate = sanitizeDate(date);
   renderDateBar();
   renderAll();
   switchTab('comidas');
@@ -3281,14 +3285,18 @@ function onDatePickerChange(e) {
 }
 
 function setSelectedDate(date) {
-  state.selectedDate = date;
+  const clean = sanitizeDate(date);
+  state.selectedDate = clean;
   renderDateBar();
   renderAll();
   if (CONFIG.scriptUrl) {
     setSyncStatus('syncing');
-    syncTodayEntries(state.profile, date).then(() => {
+    syncTodayEntries(state.profile, clean).then(() => {
       setSyncStatus('online');
-      renderAll();
+      renderFoodList();
+      renderExerciseList();
+      renderDashboard();
+      renderDateBar();
     });
   }
 }
