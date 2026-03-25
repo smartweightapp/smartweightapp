@@ -1168,6 +1168,11 @@
             <option value="Merienda">🍎 Merienda</option>
           </select>
         </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Porciones</label>
+          <input type="number" id="foodPortions" value="1" min="0.25" step="0.25"
+            oninput="onPortionsChange()" />
+        </div>
       </div>
 
       <!-- Ingredient rows (Sheets-backed search) -->
@@ -1670,6 +1675,7 @@ const PROFILE_NAMES = {
 
 /* ── STATE ──────────────────────────────────────────────────── */
 const _TODAY = new Date().toISOString().split('T')[0];
+let _historialSynced = false;
 const state = {
   profile: 'A',
   settingsProfile: 'A',
@@ -1931,8 +1937,13 @@ function switchTab(tab) {
   });
   if (tab === 'historial') {
     renderHistorial();
-    if (CONFIG.scriptUrl) {
-      syncAllEntries(state.profile).then(() => renderHistorial());
+    // Sync all entries once per tab-open; flag prevents repeat while in progress
+    if (CONFIG.scriptUrl && !_historialSynced) {
+      _historialSynced = true;
+      syncAllEntries(state.profile).then(() => {
+        _historialSynced = false;
+        renderHistorial();
+      });
     }
   }
   if (tab === 'medidas')   renderMedidas();
@@ -2444,56 +2455,65 @@ function resetFoodCalc() {
 }
 
 /* ── FOOD SUBMIT ─────────────────────────────────────────────── */
-async function submitFood() {
-  const entries  = Object.values(_rowNutrition).filter(e => e && e.row);
-  const lines    = getIngredientLines();
-  const cals     = parseFloat(document.getElementById('foodCalories').value);
-  const name     = document.getElementById('foodName').value.trim()
-                   || lines.slice(0,2).join(', ')
-                   || 'Comida';
+function submitFood() {
+  const entries = Object.values(_rowNutrition).filter(e => e && e.row);
+  const lines   = getIngredientLines();
+
+  const calEl   = document.getElementById('foodCalories');
+  const nameEl  = document.getElementById('foodName');
+  const mealEl  = document.getElementById('foodMeal');
+  const portEl  = document.getElementById('foodPortions');
+  const badgeEl = document.getElementById('foodCalBadge');
+
+  const cals = parseFloat(calEl ? calEl.value : 0) || 0;
+  const name = (nameEl ? nameEl.value.trim() : '') || lines.slice(0,2).join(', ') || 'Comida';
 
   if (!lines.length) { showToast('Agrega al menos un ingrediente', 'error'); return; }
-  if (!cals || isNaN(cals) || cals <= 0) {
-    showToast('Las calorías aún son 0 — selecciona ingredientes del buscador', 'error');
-    document.getElementById('foodCalories').focus();
+  if (!cals || cals <= 0) {
+    showToast('Las calorias son 0 — selecciona un ingrediente o escribelaas', 'error');
+    if (calEl) calEl.focus();
     return;
   }
 
-  const portions = parseFloat(document.getElementById('foodPortions')?.value) || 1;
+  const portions = parseFloat(portEl ? portEl.value : 1) || 1;
   const ingStr   = entries.length
-    ? entries.map(e => `${e.qty != null ? e.qty : (e.factor||1)} × ${e.row.nombre}`).join(', ')
+    ? entries.map(e => (e.qty != null ? e.qty : (e.factor||1)) + ' x ' + e.row.nombre).join(', ')
     : lines.join(', ');
 
   const entry = {
     id:            Date.now().toString(),
     date:          state.selectedDate,
-    name,
+    name:          name,
     ingredients:   ingStr,
     calories:      cals,
-    portions,
-    meal:          document.getElementById('foodMeal').value,
+    portions:      portions,
+    meal:          mealEl ? mealEl.value : 'Almuerzo',
     totalCalories: cals,
-    apiEstimated:  document.getElementById('foodCalBadge').textContent !== 'Manual'
   };
 
+  // Save locally first - user sees entry immediately
   state.foods[state.profile].push(entry);
   saveEntriesToStorage(state.profile);
-  if (CONFIG.scriptUrl) await pushEntry('food', state.profile, entry);
+  renderAll();
+  showToast('Comida registrada', 'success');
 
-  // Reset
-  document.getElementById('foodName').value = '';
-  document.getElementById('foodCalories').value = '';
+  // Push to Sheets in background without blocking UI
+  if (CONFIG.scriptUrl) pushEntry('food', state.profile, entry);
+
+  // Reset form
+  if (nameEl)  nameEl.value  = '';
+  if (calEl)   { calEl.value = ''; calEl.classList.remove('manual-edited'); }
+  if (portEl)  portEl.value  = '1';
+  if (badgeEl) { badgeEl.style.display = 'none'; }
   document.getElementById('ingredientRows').innerHTML = '';
   _ingredientIdCounter = 0;
   Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
   addIngredientRow('', true);
   resetFoodCalc();
-  const macros = document.getElementById('macrosSummary');
+  var macros = document.getElementById('macrosSummary');
   if (macros) macros.style.display = 'none';
-  document.getElementById('foodPortions').value = '1';
-
-  renderAll();
-  showToast('Comida registrada ✓', 'success');
+  var wrapEl = document.getElementById('foodBreakdownWrap');
+  if (wrapEl) wrapEl.style.display = 'none';
 }
 
 /* ── RECETARIO MODAL ─────────────────────────────────────────── */
@@ -2867,6 +2887,7 @@ function renderAll() {
   renderExerciseList();
   renderDateBar();
   // Re-render active secondary tabs if open
+  // Re-render historial if active, but don't re-sync from Sheets (that's done on tab open)
   const histTab = document.getElementById('content-historial');
   if (histTab && histTab.classList.contains('active')) renderHistorial();
   const medTab = document.getElementById('content-medidas');
