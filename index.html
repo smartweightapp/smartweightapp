@@ -2844,14 +2844,6 @@ function renderAll() {
   if (medTab && medTab.classList.contains('active')) renderMedidas();
 }
 
-function renderDateBar() {
-  const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
-  document.getElementById('dateDisplay').textContent =
-    new Date(state.selectedDate + 'T12:00:00').toLocaleDateString('es-MX', opts);
-  document.getElementById('profileNameDisplay').textContent =
-    state.profiles[state.profile].name;
-}
-
 /* ── RENDER DASHBOARD ───────────────────────────────────────── */
 function renderDashboard() {
   const prof   = state.profiles[state.profile];
@@ -3688,34 +3680,44 @@ async function fetchSheetRecipes(user) {
 
 /* ── INIT ───────────────────────────────────────────────────── */
 async function init() {
-  // 1. Load localStorage (includes any cached recipes)
+  // 1. Load localStorage immediately — render right away with cached data
   loadEntriesFromStorage('A');
   loadEntriesFromStorage('B');
 
-  // 2. Init date picker with today's date
+  // 2. Init date picker
   const dp = document.getElementById('datePicker');
   if (dp) { dp.value = state.today; dp.max = state.today; }
 
+  // 3. Render instantly from localStorage — user sees data with no delay
+  renderAll();
+  renderDateBar();
+
+  // 4. Bootstrap first ingredient row
+  addIngredientRow('', true);
+
+  // 5. Sync from Sheets in the background — updates UI when done
   if (CONFIG.scriptUrl) {
     setSyncStatus('syncing');
-    await Promise.all([syncProfile('A'), syncProfile('B')]);
-    await syncTodayEntries(state.profile);
-    // Fetch the master recipe library from Sheets (seeded by Code.gs)
-    await fetchSheetRecipes('A');
-    await fetchSheetRecipes('B');
-    setSyncStatus('online');
+    try {
+      await Promise.all([syncProfile('A'), syncProfile('B')]);
+      await syncTodayEntries(state.profile);
+      await fetchSheetRecipes('A');
+      await fetchSheetRecipes('B');
+      setSyncStatus('online');
+      // Re-render with fresher Sheets data
+      renderAll();
+      renderDateBar();
+    } catch (e) {
+      console.warn('Sheets sync error:', e.message);
+      setSyncStatus('local');
+    }
   } else {
     setSyncStatus('local');
   }
 
-  renderAll();
-  renderDateBar();
-
-  // Bootstrap first ingredient row after DOM is ready
-  addIngredientRow('', true);
-
-  // Warm the ingredient/recipe cache so first search is instant
-  if (CONFIG.scriptUrl) { loadIngredientes(); loadRecetario(); }
+  // 6. Warm ingredient cache in background (non-blocking)
+  loadIngredientes();
+  if (CONFIG.scriptUrl) loadRecetario();
 
   const prof = state.profiles[state.profile];
   if (!prof.configured) showUnconfiguredBanner();
