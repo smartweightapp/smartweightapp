@@ -2359,50 +2359,87 @@ async function _searchIngSheet(rowId, query) {
     dd.style.display = 'block';
   }
   const q = query.toLowerCase();
-
-  // Search both Ingredientes and Productos in parallel
   const [ings, prods] = await Promise.all([loadIngredientes(), loadProductos()]);
 
-  // Ingredientes matches (base foods)
-  // Ingredientes results — green, kcal/100g
-  const ingHits = ings
-    .filter(r => r._type === 'ing' && r.nombre &&
-      (String(r.nombre).toLowerCase().includes(q) ||
-       String(r.categoria || '').toLowerCase().includes(q))
-    ).slice(0, 4)
-    .map(r => ({
-      label: `<span style="color:var(--text-2);font-size:.63rem;margin-right:.3rem">${r.categoria || ''}</span>` +
-             `<strong>${r.nombre}</strong> ` +
-             `<span style="color:var(--lime);font-size:.7rem">${r.calorias_100g || '?'} kcal/100g</span>` +
-             `<span style="color:var(--text-3);font-size:.63rem"> · ${r.unidad_comun || ''}</span>`,
-      data: r   // already has _type:'ing'
-    }));
+  const hits = [];
 
-  // Productos results — amber, kcal per presentation
-  const prodHits = prods
-    .filter(r => r._type === 'prod' && r.nombre &&
-      (String(r.nombre).toLowerCase().includes(q) ||
-       String(r.marca  || '').toLowerCase().includes(q) ||
-       String(r.categoria || '').toLowerCase().includes(q))
-    ).slice(0, 4)
-    .map(r => ({
-      label: `<span style="color:var(--amber);font-size:.63rem;margin-right:.3rem">📦 ${r.marca || r.categoria || ''}</span>` +
-             `<strong>${r.nombre}</strong> ` +
-             `<span style="color:var(--amber);font-size:.7rem">${r.calorias || '?'} kcal</span>` +
-             `<span style="color:var(--text-3);font-size:.63rem"> · ${r.presentacion || ''}</span>`,
-      data: r   // already has _type:'prod'
-    }));
+  // ── Ingredientes ─────────────────────────────────────────────
+  for (const r of ings) {
+    if (hits.length >= 4) break;
+    const nombre    = (r.nombre    != null && r.nombre    !== '') ? String(r.nombre)    : null;
+    const categoria = (r.categoria != null && r.categoria !== '') ? String(r.categoria) : '';
+    const cal100    = (r.calorias_100g != null) ? Number(r.calorias_100g) : 0;
+    const unidad    = (r.unidad_comun != null)  ? String(r.unidad_comun)  : '';
+    if (!nombre || !cal100) continue;
+    if (!nombre.toLowerCase().includes(q) && !categoria.toLowerCase().includes(q)) continue;
+    hits.push({
+      label: '<span style="color:var(--text-2);font-size:.63rem;margin-right:.25rem">' + escHtml(categoria) + '</span>' +
+             '<strong>' + escHtml(nombre) + '</strong> ' +
+             '<span style="color:var(--lime);font-size:.7rem">' + cal100 + ' kcal/100g</span>' +
+             (unidad ? '<span style="color:var(--text-3);font-size:.63rem"> · ' + escHtml(unidad) + '</span>' : ''),
+      data: {
+        _type: 'ing',
+        nombre: nombre,
+        categoria: categoria,
+        calorias_100g: cal100,
+        unidad_comun: unidad,
+        proteina_g: Number(r.proteina_g) || 0,
+        carbs_g: Number(r.carbs_g) || 0,
+        grasa_g: Number(r.grasa_g) || 0,
+        fibra_g: Number(r.fibra_g) || 0,
+        cantidad_comun_g: Number(r.cantidad_comun_g) || 100
+      }
+    });
+  }
 
-  const hits = [...ingHits, ...prodHits].slice(0, 8);
+  // ── Productos ─────────────────────────────────────────────────
+  let prodCount = 0;
+  for (const r of prods) {
+    if (prodCount >= 4) break;
+    const nombre       = (r.nombre != null && r.nombre !== '') ? String(r.nombre) : null;
+    const marca        = (r.marca  != null && r.marca  !== '') ? String(r.marca)  : '';
+    const categoria    = (r.categoria    != null) ? String(r.categoria)    : '';
+    const presentacion = (r.presentacion != null) ? String(r.presentacion) : '';
+    const calorias     = (r.calorias     != null) ? Number(r.calorias)     : 0;
+    const porcion_g    = Number(r.porcion_g) || 100;
+    if (!nombre || !calorias) continue;
+    if (!nombre.toLowerCase().includes(q) &&
+        !marca.toLowerCase().includes(q) &&
+        !categoria.toLowerCase().includes(q)) continue;
+    const displayName  = marca ? (marca + ' ' + nombre) : nombre;
+    hits.push({
+      label: '<span style="color:var(--amber);font-size:.63rem;margin-right:.25rem">📦 ' + escHtml(marca || categoria) + '</span>' +
+             '<strong>' + escHtml(nombre) + '</strong> ' +
+             '<span style="color:var(--amber);font-size:.7rem">' + calorias + ' kcal</span>' +
+             (presentacion ? '<span style="color:var(--text-3);font-size:.63rem"> · ' + escHtml(presentacion) + '</span>' : ''),
+      data: {
+        _type: 'prod',
+        nombre: displayName,
+        marca: marca,
+        categoria: categoria,
+        calorias_100g: calorias,
+        proteina_g: Number(r.proteina_g) || 0,
+        carbs_g: Number(r.carbs_g) || 0,
+        grasa_g: Number(r.grasa_g) || 0,
+        fibra_g: Number(r.fibra_g) || 0,
+        azucar_g: Number(r.azucar_g) || 0,
+        unidad_comun: presentacion || '1 porcion',
+        cantidad_comun_g: porcion_g,
+        _isProduct: true,
+        _fixedCal: calorias
+      }
+    });
+    prodCount++;
+  }
 
   if (!hits.length) {
     if (dd) {
       const noKey = !CONFIG.scriptUrl;
-      dd.innerHTML = `<div class="ac-item" style="color:var(--text-3);cursor:default;font-size:.78rem">
-        ${noKey
+      dd.innerHTML = '<div class="ac-item" style="color:var(--text-3);cursor:default;font-size:.78rem">' +
+        (noKey
           ? '⚠ Conecta Google Sheets en ⚙ para buscar ingredientes'
-          : `Sin resultados para "${escHtml(query)}" — ¿agregar nuevo ingrediente?`}
-        </div>`;
+          : 'Sin resultados para "' + escHtml(query) + '" — ¿agregar nuevo ingrediente?') +
+        '</div>';
       dd.style.display = 'block';
     }
     return;
@@ -2410,45 +2447,18 @@ async function _searchIngSheet(rowId, query) {
 
   showDropdown(
     `ing-ac-${rowId}`,
-    hits.map(row => ({
-      label: `<span style="color:var(--text-2);font-size:.68rem;margin-right:.35rem">${row.categoria}</span>` +
-             `<strong>${row.nombre}</strong>` +
-             ` <span style="color:var(--lime);font-size:.75rem">${row.calorias_100g} kcal/100g</span>` +
-             `<span style="color:var(--text-3);font-size:.68rem"> · ${row.unidad_comun || ''}</span>`,
-      data: row
-    })),
+    hits,
     (item) => selectIngredientFromSheet(rowId, item.data)
   );
 }
 
+
 function selectIngredientFromSheet(rowId, row) {
-  // Determine type FIRST before using it
-  const isProduct = row._type === 'prod';
-
+  // row is already fully normalized by _searchIngSheet
   const inp = document.getElementById(`ing-${rowId}`);
-  if (inp) inp.value = isProduct
-    ? [row.marca, row.nombre].filter(Boolean).join(' ')
-    : (row.nombre || '');
+  if (inp) inp.value = row.nombre || '';
   hideDropdown(`ing-ac-${rowId}`);
-
-  // Normalize to unified schema
-  const normalized = isProduct
-    ? {
-        nombre:           ([row.marca, row.nombre].filter(Boolean).join(' ')).trim() || 'Producto',
-        calorias_100g:    Number(row.calorias)    || 0,
-        proteina_g:       Number(row.proteina_g)  || 0,
-        carbs_g:          Number(row.carbs_g)     || 0,
-        grasa_g:          Number(row.grasa_g)     || 0,
-        fibra_g:          Number(row.fibra_g)     || 0,
-        azucar_g:         Number(row.azucar_g)    || 0,
-        unidad_comun:     row.presentacion        || '1 porcion',
-        cantidad_comun_g: Number(row.porcion_g)   || 100,
-        _isProduct:       true,
-        _fixedCal:        Number(row.calorias)    || 0,
-      }
-    : row;
-
-  _rowNutrition[rowId] = { row: normalized, qty: 1 };
+  _rowNutrition[rowId] = { row, qty: 1 };
 
   const portRow = document.getElementById(`ing-portion-${rowId}`);
   const qtyInp  = document.getElementById(`ing-qty-${rowId}`);
