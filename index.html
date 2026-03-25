@@ -1856,6 +1856,21 @@ async function syncTodayEntries(user, date) {
   }
 }
 
+// Load ALL historical entries for a user (used by historial tab)
+async function syncAllEntries(user) {
+  if (!CONFIG.scriptUrl) return;
+  try {
+    const data = await apiGet({ action: 'getAllEntries', user });
+    if (data) {
+      if (data.foods)     state.foods[user]     = data.foods;
+      if (data.exercises) state.exercises[user] = data.exercises;
+      saveEntriesToStorage(user);
+    }
+  } catch (e) {
+    console.warn('syncAllEntries error:', e.message);
+  }
+}
+
 async function pushEntry(type, user, entry) {
   return await apiCall({ action: type === 'food' ? 'addFood' : 'addExercise', user, entry });
 }
@@ -1905,7 +1920,12 @@ function switchTab(tab) {
     if (cont)   cont.classList.toggle('active', t === tab);
     if (nav)    nav.classList.toggle('active', t === tab);
   });
-  if (tab === 'historial') renderHistorial();
+  if (tab === 'historial') {
+    renderHistorial();
+    if (CONFIG.scriptUrl) {
+      syncAllEntries(state.profile).then(() => renderHistorial());
+    }
+  }
   if (tab === 'medidas')   renderMedidas();
   if (tab === 'comidas') {
     const rows = document.getElementById('ingredientRows');
@@ -2950,479 +2970,7 @@ function renderExerciseList() {
   `).join('');
 }
 
-/* ── RENDER HISTORIAL ───────────────────────────────────────── */
-function renderHistorial() {
-  const container = document.getElementById('historialContent');
-  const allFoods  = state.foods[state.profile];
-  const allEx     = state.exercises[state.profile];
 
-  // Group by date
-  const dates = [...new Set([
-    ...allFoods.map(f => f.date),
-    ...allEx.map(e => e.date)
-  ])].sort((a,b) => b.localeCompare(a));
-
-  if (!dates.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div>Sin historial todavía</div></div>`;
-    return;
-  }
-
-  container.innerHTML = dates.map(date => {
-    const foods = allFoods.filter(f => f.date === date);
-    const exs   = allEx.filter(e => e.date === date);
-    const calsIn    = foods.reduce((s,f) => s + (f.totalCalories||f.calories), 0);
-    const calsBurn  = exs.reduce((s,e) => s + e.caloriesBurned, 0);
-    const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('es-MX', { weekday:'short', day:'numeric', month:'short' });
-
-    return `
-      <div class="history-date-group">
-        <div class="history-date-label" style="display:flex;justify-content:space-between;align-items:center;">
-          <span>${dateLabel}${date === state.today ? ' · <span style="color:var(--lime)">HOY</span>' : ''}</span>
-          <span class="mono" style="font-size:.72rem;">
-            <span style="color:var(--amber)">+${calsIn.toLocaleString()}</span>
-            ${calsBurn ? `<span style="color:var(--lime)"> −${calsBurn.toLocaleString()}</span>` : ''}
-          </span>
-        </div>
-        <div class="log-list">
-          ${foods.map(f => `
-            <div class="log-entry">
-              <div class="log-entry-main">
-                <div class="log-entry-name">${f.meal ? `<span style="font-size:.7em;opacity:.5">${f.meal}·</span> ` : ''}${escHtml(f.name)}</div>
-                <div class="log-entry-sub">${escHtml(f.ingredients||'')}</div>
-              </div>
-              <div class="log-entry-cal cal-food">+${(f.totalCalories||f.calories).toLocaleString()}</div>
-            </div>`).join('')}
-          ${exs.map(e => `
-            <div class="log-entry">
-              <div class="log-entry-main">
-                <div class="log-entry-name">🏃 ${escHtml(e.name)}</div>
-                <div class="log-entry-sub">${e.duration ? e.duration+'min' : ''} ${e.intensity||''}</div>
-              </div>
-              <div class="log-entry-cal cal-burn">−${e.caloriesBurned.toLocaleString()}</div>
-            </div>`).join('')}
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-/* ── SETTINGS MODAL ─────────────────────────────────────────── */
-function renderSyncBlock() {
-  const el = document.getElementById('syncConfigBlock');
-  if (!el) return;
-  if (CONFIG.isPreconfigured) {
-    el.innerHTML = `
-      <div class="sync-locked-banner">
-        <span class="sync-lock-icon">🔒</span>
-        <div>
-          <div class="sync-lock-title">Claves configuradas via CI/CD</div>
-          <div class="sync-lock-sub">La Apps Script URL fue inyectada de forma segura al despliegue. Los datos de Ingredientes y Recetario viven en tu Google Sheet.</div>
-        </div>
-      </div>`;
-  } else {
-    el.innerHTML = `
-      <div class="config-banner">
-        <strong>🔗 Google Sheets:</strong> URL de Apps Script para sincronización.
-        <br><br>
-        Los datos de Ingredientes y Recetario viven en el Google Sheet — comparte con todos los perfiles automáticamente.
-      </div>
-      <div class="form-group">
-        <label>URL Google Apps Script</label>
-        <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec"
-          value="${CONFIG.scriptUrl}" />
-      </div>
-      <button class="btn-secondary" style="margin-top:0;margin-bottom:1.25rem;" onclick="testConnection()">Probar conexión Sheets</button>`;
-  }
-}
-function openSettings() {
-  renderSyncBlock();
-  loadSettingsForm(state.settingsProfile);
-  document.getElementById('settingsModal').classList.add('open');
-}
-function closeSettings() {
-  document.getElementById('settingsModal').classList.remove('open');
-}
-function switchSettingsProfile(user) {
-  state.settingsProfile = user;
-  document.getElementById('stab-A').classList.toggle('active', user === 'A');
-  document.getElementById('stab-B').classList.toggle('active', user === 'B');
-  loadSettingsForm(user);
-}
-function loadSettingsForm(user) {
-  const p = state.profiles[user];
-  const nameInput = document.getElementById('sName');
-  // Show override name if user set one; keep field EMPTY otherwise so CI name
-  // shows as placeholder, making clear it is already set.
-  nameInput.value       = p.nameOverride || '';
-  nameInput.placeholder = PROFILE_NAMES[user];
-  document.getElementById('sSex').value      = p.sex      || 'male';
-  // Only pre-fill health numbers if the profile has been configured (not 0).
-  document.getElementById('sAge').value      = p.age      || '';
-  document.getElementById('sWeight').value   = p.weight   || '';
-  document.getElementById('sHeight').value   = p.height   || '';
-  document.getElementById('sActivity').value = p.activity || '1.55';
-}
-async function saveSettings() {
-  const user = state.settingsProfile;
-  const typedName   = document.getElementById('sName').value.trim();
-  // Only store as override if user typed something different from the CI-baked name
-  const nameOverride = (typedName && typedName !== PROFILE_NAMES[user]) ? typedName : '';
-  const profile = {
-    name:         nameOverride || PROFILE_NAMES[user],
-    nameOverride,
-    sex:          document.getElementById('sSex').value,
-    age:          parseFloat(document.getElementById('sAge').value)      || 0,
-    weight:       parseFloat(document.getElementById('sWeight').value)   || 0,
-    height:       parseFloat(document.getElementById('sHeight').value)   || 0,
-    activity:     parseFloat(document.getElementById('sActivity').value) || 1.55,
-    configured:   !!(parseFloat(document.getElementById('sAge').value) &&
-                     parseFloat(document.getElementById('sWeight').value) &&
-                     parseFloat(document.getElementById('sHeight').value))
-  };
-  state.profiles[user] = profile;
-  saveProfileToStorage(user, profile);
-
-  // Save API keys — only if NOT pre-configured by CI
-  if (!CONFIG.isPreconfigured) {
-    const urlEl  = document.getElementById('scriptUrl');
-
-    if (urlEl) {
-      const url = urlEl.value.trim();
-      CONFIG.scriptUrl = url;
-      localStorage.setItem('vita_scriptUrl', url);
-    }
-
-  }
-
-  if (CONFIG.scriptUrl) {
-    await pushProfile(user, profile);
-  }
-
-  closeSettings();
-  renderAll();
-  showToast(`Perfil ${user} guardado ✓`, 'success');
-}
-
-async function testConnection() {
-  const urlEl = document.getElementById('scriptUrl');
-  const url   = urlEl ? urlEl.value.trim() : CONFIG.scriptUrl;
-  if (!url) { showToast('Ingresa una URL primero', 'error'); return; }
-  showToast('Probando conexión…', 'loading');
-  // Temporarily set for the ping without persisting
-  const prev = CONFIG.scriptUrl;
-  CONFIG.scriptUrl = url;
-  const result = await apiGet({ action: 'ping' });
-  CONFIG.scriptUrl = prev || url;
-  if (result && result.status === 'ok') {
-    showToast('Conexión exitosa ✓', 'success');
-  } else {
-    showToast('No se pudo conectar. Verifica la URL.', 'error');
-  }
-}
-
-/* ── TOAST ──────────────────────────────────────────────────── */
-let toastTimer;
-function showToast(msg, type = 'success') {
-  const el = document.getElementById('toast');
-  clearTimeout(toastTimer);
-  el.textContent = msg;
-  el.className = `show ${type}`;
-  toastTimer = setTimeout(() => { el.className = ''; }, 2800);
-}
-
-/* ── UTILS ──────────────────────────────────────────────────── */
-
-/* ── CLOSE MODAL ON OVERLAY CLICK ───────────────────────────── */
-document.getElementById('settingsModal').addEventListener('click', function(e) {
-  if (e.target === this) closeSettings();
-});
-['recetarioModal','addIngredientModal','addRecipeModal'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('click', function(e) {
-    if (e.target === this) this.classList.remove('open');
-  });
-});
-
-/* ═══════════════════════════════════════════════════════════════
-   DATE NAVIGATION
-═══════════════════════════════════════════════════════════════ */
-function changeDate(delta) {
-  const d  = new Date(state.selectedDate + 'T12:00:00');
-  d.setDate(d.getDate() + delta);
-  const nd = d.toISOString().split('T')[0];
-  // Don't go into the future
-  if (nd > state.today) return;
-  setSelectedDate(nd);
-}
-
-function onDatePickerChange(e) {
-  const val = e.target.value;
-  if (val && val <= state.today) setSelectedDate(val);
-}
-
-async function setSelectedDate(date) {
-  state.selectedDate = date;
-  renderDateBar();
-  renderAll();
-  // Sync that date's entries from Sheets if connected
-  if (CONFIG.scriptUrl) {
-    setSyncStatus('syncing');
-    await syncTodayEntries(state.profile, date);
-    setSyncStatus('online');
-    renderAll();
-  }
-}
-
-/* Override renderDateBar to update date picker + nav controls */
-function renderDateBar() {
-  const opts = { weekday:'short', year:'numeric', month:'short', day:'numeric' };
-  const sel  = state.selectedDate;
-  document.getElementById('dateDisplay').textContent =
-    new Date(sel + 'T12:00:00').toLocaleDateString('es-MX', opts);
-  document.getElementById('profileNameDisplay').textContent =
-    state.profiles[state.profile].name;
-  // Sync the hidden date input
-  const dp = document.getElementById('datePicker');
-  if (dp) dp.value = sel;
-  // Show/hide TODAY badge
-  const badge = document.getElementById('dateTodayBadge');
-  if (badge) badge.style.display = sel === state.today ? 'inline-flex' : 'none';
-  // Disable forward button when at today
-  const btns = document.querySelectorAll('.date-nav-btn');
-  if (btns[1]) btns[1].style.opacity = sel === state.today ? '0.3' : '1';
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   RECETARIO (RECIPE BOOK)
-═══════════════════════════════════════════════════════════════ */
-function loadRecipesFromStorage(user) {
-  const raw = localStorage.getItem(`vita_recipes_${user}`);
-  state.recipes[user] = raw ? JSON.parse(raw) : [];
-}
-
-function saveRecipesToStorage(user) {
-  localStorage.setItem(`vita_recipes_${user}`, JSON.stringify(state.recipes[user]));
-}
-
-function toggleRecetario() {
-  const panel = document.getElementById('recetarioPanel');
-  if (!panel) return;
-  const open = panel.style.display === 'none';
-  panel.style.display = open ? 'block' : 'none';
-  if (open) renderRecetario();
-}
-
-function renderRecetario() {
-  const list    = document.getElementById('recetarioList');
-  const recipes = state.recipes[state.profile];
-  if (!list) return;
-  if (!recipes.length) {
-    list.innerHTML = '<div class="empty-state" style="padding:1rem"><div>Sin recetas guardadas — registra una comida y toca "+ Guardar actual"</div></div>';
-    return;
-  }
-  list.innerHTML = recipes.map((r, i) => `
-    <div class="recipe-item">
-      <div class="recipe-item-main">
-        <div class="recipe-item-name">${escHtml(r.name)}</div>
-        <div class="recipe-item-detail">${escHtml(r.ingredients || '')}</div>
-      </div>
-      <span class="recipe-item-cal">${r.calories} kcal</span>
-      <button class="btn-use-recipe" onclick="useRecipe(${i})">Usar</button>
-      <button class="btn-delete" onclick="deleteRecipe(${i})" title="Eliminar">✕</button>
-    </div>`).join('');
-}
-
-function saveCurrentAsRecipe() {
-  const lines = getIngredientLines();
-  const name  = document.getElementById('foodName').value.trim() || lines.slice(0,2).join(', ');
-  const cals  = parseFloat(document.getElementById('foodCalories').value);
-  if (!lines.length || !name) {
-    showToast('Completa el formulario de comida primero', 'error'); return;
-  }
-  const recipe = {
-    id:          Date.now().toString(),
-    name,
-    ingredients: lines.join(', '),
-    calories:    isNaN(cals) ? 0 : cals,
-    meal:        document.getElementById('foodMeal').value
-  };
-  state.recipes[state.profile].push(recipe);
-  saveRecipesToStorage(state.profile);
-  if (CONFIG.scriptUrl) apiCall({ action: 'saveRecipe', user: state.profile, recipe });
-  renderRecetario();
-  showToast(`"${name}" guardado en recetario ✓`, 'success');
-}
-
-function useRecipe(idx) {
-  const r = state.recipes[state.profile][idx];
-  if (!r) return;
-  // Fill form with recipe data
-  document.getElementById('foodName').value = r.name;
-  if (r.meal) document.getElementById('foodMeal').value = r.meal;
-  // Fill ingredient rows
-  document.getElementById('ingredientRows').innerHTML = '';
-  _ingredientIdCounter = 0;
-  Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
-  const lines = r.ingredients.split(',').map(s => s.trim()).filter(Boolean);
-  lines.forEach(l => addIngredientRow(l, true));
-  // Pre-fill calorie total if available
-  if (r.calories) {
-    document.getElementById('foodCalories').value = r.calories;
-    const badge = document.getElementById('foodCalBadge');
-    if (badge) { badge.textContent = 'Recetario'; badge.style.display = 'inline-flex'; }
-  }
-  // Close recetario
-  const panel = document.getElementById('recetarioPanel');
-  if (panel) panel.style.display = 'none';
-  showToast(`"${r.name}" cargado ✓`, 'success');
-}
-
-function deleteRecipe(idx) {
-  const r = state.recipes[state.profile].splice(idx, 1)[0];
-  saveRecipesToStorage(state.profile);
-  if (CONFIG.scriptUrl && r) apiCall({ action: 'deleteRecipe', user: state.profile, id: r.id });
-  renderRecetario();
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   MEASUREMENTS
-═══════════════════════════════════════════════════════════════ */
-function loadMeasurementsFromStorage(user) {
-  const raw = localStorage.getItem(`vita_measurements_${user}`);
-  state.measurements[user] = raw ? JSON.parse(raw) : [];
-}
-
-function saveMeasurementsToStorage(user) {
-  localStorage.setItem(`vita_measurements_${user}`, JSON.stringify(state.measurements[user]));
-}
-
-async function saveMeasurement() {
-  const weight = parseFloat(document.getElementById('mWeight').value) || null;
-  const waist  = parseFloat(document.getElementById('mWaist').value)  || null;
-  const hip    = parseFloat(document.getElementById('mHip').value)    || null;
-  const neck   = parseFloat(document.getElementById('mNeck').value)   || null;
-  const arm    = parseFloat(document.getElementById('mArm').value)    || null;
-  const thigh  = parseFloat(document.getElementById('mThigh').value)  || null;
-  const note   = document.getElementById('mNote').value.trim();
-
-  if (!weight && !waist && !hip) {
-    showToast('Ingresa al menos peso o cintura', 'error'); return;
-  }
-
-  const entry = {
-    id:     Date.now().toString(),
-    date:   state.selectedDate,
-    weight, waist, hip, neck, arm, thigh, note
-  };
-
-  state.measurements[state.profile].push(entry);
-  saveMeasurementsToStorage(state.profile);
-
-  // If weight updated, also update profile weight for TDEE/BMI calc
-  if (weight) {
-    state.profiles[state.profile].weight = weight;
-    saveProfileToStorage(state.profile, state.profiles[state.profile]);
-    if (CONFIG.scriptUrl) pushProfile(state.profile, state.profiles[state.profile]);
-  }
-
-  if (CONFIG.scriptUrl) apiCall({ action: 'saveMeasurement', user: state.profile, entry });
-
-  // Clear form
-  ['mWeight','mWaist','mHip','mNeck','mArm','mThigh','mNote'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-
-  renderMedidas();
-  renderDashboard(); // refresh BMI/TDEE with new weight
-  showToast('Medidas guardadas ✓', 'success');
-}
-
-function setMMetric(metric) {
-  state.mMetric = metric;
-  document.querySelectorAll('[id^="mmetric-"]').forEach(b => b.classList.remove('active'));
-  const btn = document.getElementById(`mmetric-${metric}`);
-  if (btn) btn.classList.add('active');
-  renderMedidas();
-}
-
-function renderMedidas() {
-  const all = state.measurements[state.profile]
-    .slice()
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  // ── Chart ─────────────────────────────────────────────────────
-  const metric    = state.mMetric;
-  const chartWrap = document.getElementById('measChartWrap');
-  const prof      = state.profiles[state.profile];
-
-  const getValue = (entry) => {
-    if (metric === 'peso')    return entry.weight;
-    if (metric === 'cintura') return entry.waist;
-    if (metric === 'imc')     return entry.weight && prof.height
-      ? parseFloat((entry.weight / Math.pow(prof.height/100, 2)).toFixed(1)) : null;
-    if (metric === 'grasa') {
-      // US Navy body fat % estimate
-      if (!entry.waist || !entry.neck || !prof.height) return null;
-      if (prof.sex === 'male') {
-        return parseFloat((495/(1.0324-0.19077*Math.log10(entry.waist-entry.neck)+0.15456*Math.log10(prof.height))-450).toFixed(1));
-      } else {
-        if (!entry.hip) return null;
-        return parseFloat((495/(1.29579-0.35004*Math.log10(entry.waist+entry.hip-entry.neck)+0.22100*Math.log10(prof.height))-450).toFixed(1));
-      }
-    }
-    return null;
-  };
-
-  const points = all.map(e => ({ date: e.date, val: getValue(e) })).filter(p => p.val !== null);
-
-  if (points.length >= 2) {
-    if (chartWrap) chartWrap.style.display = 'block';
-    drawLineChart('measChart', points, ['#7DF9FF'], [metric], { unit: metric === 'grasa' ? '%' : (metric === 'imc' ? '' : 'kg/cm') });
-  } else {
-    if (chartWrap) chartWrap.style.display = 'none';
-  }
-
-  // ── History list ──────────────────────────────────────────────
-  const container = document.getElementById('measHistory');
-  if (!container) return;
-  if (!all.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📏</div><div>Sin medidas registradas</div></div>';
-    return;
-  }
-
-  const fieldMap = { weight:'Peso', waist:'Cintura', hip:'Cadera', neck:'Cuello', arm:'Brazo', thigh:'Muslo' };
-  container.innerHTML = all.slice().reverse().map(e => {
-    const chips = Object.entries(fieldMap)
-      .filter(([k]) => e[k])
-      .map(([k,label]) => {
-        const unit = k === 'weight' ? 'kg' : 'cm';
-        const isMain = k === (metric === 'peso' ? 'weight' : metric === 'cintura' ? 'waist' : '');
-        return `<span class="meas-chip${isMain ? ' highlight' : ''}">${label}: ${e[k]}${unit}</span>`;
-      }).join('');
-    const dl = new Date(e.date + 'T12:00:00').toLocaleDateString('es-MX', { day:'numeric', month:'short', year:'numeric' });
-    return `
-      <div class="meas-entry">
-        <div>
-          <div class="meas-date">${dl}</div>
-          ${e.note ? `<div style="font-size:.7rem;color:var(--text-2);margin-top:.1rem">${escHtml(e.note)}</div>` : ''}
-        </div>
-        <div class="meas-values">${chips}</div>
-        <button class="btn-delete" onclick="deleteMeasurement('${e.id}')" title="Eliminar">✕</button>
-      </div>`;
-  }).join('');
-}
-
-function deleteMeasurement(id) {
-  state.measurements[state.profile] = state.measurements[state.profile].filter(e => e.id !== id);
-  saveMeasurementsToStorage(state.profile);
-  if (CONFIG.scriptUrl) apiCall({ action: 'deleteMeasurement', user: state.profile, id });
-  renderMedidas();
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   HISTORIAL ENHANCED
-═══════════════════════════════════════════════════════════════ */
 function setPeriod(period) {
   state.period = period;
   document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
@@ -3529,11 +3077,20 @@ function renderHistorial() {
   }).join('');
 }
 
+
+
 function jumpToDate(date) {
-  setSelectedDate(date).then(() => {
-    switchTab('comidas');
-    showToast('Editando ' + new Date(date+'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'}), 'success');
-  });
+  // Set date immediately and switch tab — no waiting for Sheets
+  state.selectedDate = date;
+  renderDateBar();
+  renderAll();
+  switchTab('comidas');
+  const dl = new Date(date+'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short',weekday:'short'});
+  showToast('Editando ' + dl, 'success');
+  // Sync this date from Sheets in the background
+  if (CONFIG.scriptUrl) {
+    syncTodayEntries(state.profile, date).then(() => renderAll());
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
