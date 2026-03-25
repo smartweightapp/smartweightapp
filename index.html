@@ -1676,6 +1676,22 @@ const PROFILE_NAMES = {
 /* ── STATE ──────────────────────────────────────────────────── */
 const _TODAY = new Date().toISOString().split('T')[0];
 let _historialSynced = false;
+
+// Normalize any date value to YYYY-MM-DD string.
+// Handles: "2026-03-24", "2026-03-24T07:00:00.000Z", Date objects, Sheets serial numbers.
+function sanitizeDate(v) {
+  if (!v) return '';
+  if (typeof v === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;   // already correct
+    if (v.includes('T')) return v.split('T')[0];      // ISO with time
+    return v;
+  }
+  if (v instanceof Date) return v.toISOString().split('T')[0];
+  if (typeof v === 'number' && v > 40000) {           // Sheets serial number
+    return new Date((v - 25569) * 86400 * 1000).toISOString().split('T')[0];
+  }
+  return String(v);
+}
 const state = {
   profile: 'A',
   settingsProfile: 'A',
