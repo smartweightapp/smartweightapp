@@ -1919,6 +1919,12 @@ function switchTab(tab) {
    INGREDIENTES + RECETARIO  —  Sheets-backed, shared across profiles
 ═══════════════════════════════════════════════════════════════ */
 
+/* ── DEBOUNCE UTIL ──────────────────────────────────────────── */
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
 /* ── DROPDOWN HELPERS ───────────────────────────────────────── */
 function showDropdown(dropdownId, items, onSelect) {
   const el = document.getElementById(dropdownId);
@@ -1948,25 +1954,127 @@ function hideDropdown(id) {
 // In-memory cache so we don't hit Sheets on every keystroke
 const _cache = { ingredientes: null, recetario: null };
 
+/* ── LOCAL INGREDIENT FALLBACK ─────────────────────────────────
+   Used when Sheets is not connected or returns empty.
+   Same schema as Ingredientes sheet:
+   { id, categoria, nombre, calorias_100g, proteina_g, carbs_g,
+     grasa_g, fibra_g, unidad_comun, cantidad_comun_g, notas }
+── */
+const LOCAL_INGREDIENTES = [
+  // Verduras
+  {id:'l01',categoria:'Verdura',nombre:'Lechuga romana',      calorias_100g:15, proteina_g:1.4,carbs_g:2.4, grasa_g:0.2,fibra_g:2.1,unidad_comun:'1 taza picada',  cantidad_comun_g:47 },
+  {id:'l02',categoria:'Verdura',nombre:'Espinaca',            calorias_100g:23, proteina_g:2.9,carbs_g:3.6, grasa_g:0.4,fibra_g:2.2,unidad_comun:'1 taza cruda',   cantidad_comun_g:30 },
+  {id:'l03',categoria:'Verdura',nombre:'Calabaza italiana',   calorias_100g:17, proteina_g:1.2,carbs_g:3.1, grasa_g:0.3,fibra_g:1.0,unidad_comun:'1 taza en cubos',cantidad_comun_g:124},
+  {id:'l04',categoria:'Verdura',nombre:'Zanahoria',           calorias_100g:41, proteina_g:0.9,carbs_g:9.6, grasa_g:0.2,fibra_g:2.8,unidad_comun:'1 zanahoria med',cantidad_comun_g:61 },
+  {id:'l05',categoria:'Verdura',nombre:'Tomate jitomate',     calorias_100g:18, proteina_g:0.9,carbs_g:3.9, grasa_g:0.2,fibra_g:1.2,unidad_comun:'1 tomate med',   cantidad_comun_g:123},
+  {id:'l06',categoria:'Verdura',nombre:'Brocoli',             calorias_100g:34, proteina_g:2.8,carbs_g:6.6, grasa_g:0.4,fibra_g:2.6,unidad_comun:'1 taza floretes',cantidad_comun_g:91 },
+  {id:'l07',categoria:'Verdura',nombre:'Cebolla',             calorias_100g:40, proteina_g:1.1,carbs_g:9.3, grasa_g:0.1,fibra_g:1.7,unidad_comun:'1/4 cebolla',    cantidad_comun_g:40 },
+  {id:'l08',categoria:'Verdura',nombre:'Ajo',                 calorias_100g:149,proteina_g:6.4,carbs_g:33.1,grasa_g:0.5,fibra_g:2.1,unidad_comun:'1 diente',       cantidad_comun_g:3  },
+  {id:'l09',categoria:'Verdura',nombre:'Pepino',              calorias_100g:15, proteina_g:0.7,carbs_g:3.6, grasa_g:0.1,fibra_g:0.5,unidad_comun:'1/2 pepino',     cantidad_comun_g:75 },
+  {id:'l10',categoria:'Verdura',nombre:'Nopal',               calorias_100g:16, proteina_g:1.3,carbs_g:3.3, grasa_g:0.1,fibra_g:2.2,unidad_comun:'1 nopal mediano',cantidad_comun_g:86 },
+  {id:'l11',categoria:'Verdura',nombre:'Jicama',              calorias_100g:38, proteina_g:0.7,carbs_g:8.8, grasa_g:0.1,fibra_g:4.9,unidad_comun:'1 taza en cubos',cantidad_comun_g:130},
+  {id:'l12',categoria:'Verdura',nombre:'Chayote',             calorias_100g:24, proteina_g:0.8,carbs_g:5.9, grasa_g:0.2,fibra_g:1.7,unidad_comun:'1/2 chayote',    cantidad_comun_g:80 },
+  {id:'l13',categoria:'Verdura',nombre:'Pimiento',            calorias_100g:31, proteina_g:1.0,carbs_g:6.0, grasa_g:0.3,fibra_g:2.1,unidad_comun:'1 pimiento med', cantidad_comun_g:119},
+  {id:'l14',categoria:'Verdura',nombre:'Champiñones',         calorias_100g:22, proteina_g:3.1,carbs_g:3.3, grasa_g:0.3,fibra_g:1.0,unidad_comun:'1 taza rebanados',cantidad_comun_g:70},
+  {id:'l15',categoria:'Verdura',nombre:'Aguacate',            calorias_100g:160,proteina_g:2.0,carbs_g:8.5, grasa_g:14.7,fibra_g:6.7,unidad_comun:'1/2 aguacate',  cantidad_comun_g:100},
+  // Frutas
+  {id:'l20',categoria:'Fruta',nombre:'Manzana',               calorias_100g:52, proteina_g:0.3,carbs_g:13.8,grasa_g:0.2,fibra_g:2.4,unidad_comun:'1 manzana med',  cantidad_comun_g:182},
+  {id:'l21',categoria:'Fruta',nombre:'Pera',                  calorias_100g:57, proteina_g:0.4,carbs_g:15.2,grasa_g:0.1,fibra_g:3.1,unidad_comun:'1 pera med',     cantidad_comun_g:178},
+  {id:'l22',categoria:'Fruta',nombre:'Mango ataulfo',         calorias_100g:65, proteina_g:0.5,carbs_g:17.0,grasa_g:0.3,fibra_g:1.8,unidad_comun:'1 mango med',    cantidad_comun_g:200},
+  {id:'l23',categoria:'Fruta',nombre:'Platano',               calorias_100g:89, proteina_g:1.1,carbs_g:22.8,grasa_g:0.3,fibra_g:2.6,unidad_comun:'1 platano med',  cantidad_comun_g:118},
+  {id:'l24',categoria:'Fruta',nombre:'Naranja',               calorias_100g:47, proteina_g:0.9,carbs_g:11.8,grasa_g:0.1,fibra_g:2.4,unidad_comun:'1 naranja med',  cantidad_comun_g:131},
+  {id:'l25',categoria:'Fruta',nombre:'Fresa',                 calorias_100g:32, proteina_g:0.7,carbs_g:7.7, grasa_g:0.3,fibra_g:2.0,unidad_comun:'1 taza',         cantidad_comun_g:152},
+  {id:'l26',categoria:'Fruta',nombre:'Papaya',                calorias_100g:43, proteina_g:0.5,carbs_g:10.8,grasa_g:0.3,fibra_g:1.7,unidad_comun:'1 taza en cubos',cantidad_comun_g:145},
+  {id:'l27',categoria:'Fruta',nombre:'Piña',                  calorias_100g:50, proteina_g:0.5,carbs_g:13.1,grasa_g:0.1,fibra_g:1.4,unidad_comun:'1 taza en cubos',cantidad_comun_g:165},
+  // Proteinas
+  {id:'l30',categoria:'Proteina',nombre:'Pechuga de pollo',   calorias_100g:165,proteina_g:31.0,carbs_g:0.0,grasa_g:3.6,fibra_g:0.0,unidad_comun:'1 pechuga med', cantidad_comun_g:172},
+  {id:'l31',categoria:'Proteina',nombre:'Muslo de pollo',     calorias_100g:209,proteina_g:26.0,carbs_g:0.0,grasa_g:11.0,fibra_g:0.0,unidad_comun:'1 muslo med',  cantidad_comun_g:116},
+  {id:'l32',categoria:'Proteina',nombre:'Carne molida res',   calorias_100g:250,proteina_g:26.0,carbs_g:0.0,grasa_g:17.0,fibra_g:0.0,unidad_comun:'100g',          cantidad_comun_g:100},
+  {id:'l33',categoria:'Proteina',nombre:'Bistec de res',      calorias_100g:207,proteina_g:26.0,carbs_g:0.0,grasa_g:11.0,fibra_g:0.0,unidad_comun:'1 bistec 120g', cantidad_comun_g:120},
+  {id:'l34',categoria:'Proteina',nombre:'Salmon',             calorias_100g:208,proteina_g:20.0,carbs_g:0.0,grasa_g:13.0,fibra_g:0.0,unidad_comun:'filete 150g',   cantidad_comun_g:150},
+  {id:'l35',categoria:'Proteina',nombre:'Atun en agua',       calorias_100g:116,proteina_g:25.5,carbs_g:0.0,grasa_g:1.0, fibra_g:0.0,unidad_comun:'1 lata 140g',  cantidad_comun_g:140},
+  {id:'l36',categoria:'Proteina',nombre:'Huevo entero',       calorias_100g:78, proteina_g:6.3, carbs_g:0.6,grasa_g:5.3, fibra_g:0.0,unidad_comun:'1 huevo L',     cantidad_comun_g:60 },
+  {id:'l37',categoria:'Proteina',nombre:'Clara de huevo',     calorias_100g:17, proteina_g:3.6, carbs_g:0.2,grasa_g:0.1, fibra_g:0.0,unidad_comun:'1 clara',       cantidad_comun_g:33 },
+  {id:'l38',categoria:'Proteina',nombre:'Jamon de pavo',      calorias_100g:107,proteina_g:14.6,carbs_g:3.1,grasa_g:4.2, fibra_g:0.3,unidad_comun:'2 rebanadas',   cantidad_comun_g:56 },
+  {id:'l39',categoria:'Proteina',nombre:'Jamon de cerdo',     calorias_100g:145,proteina_g:15.0,carbs_g:1.5,grasa_g:9.0, fibra_g:0.0,unidad_comun:'2 rebanadas',   cantidad_comun_g:56 },
+  {id:'l40',categoria:'Proteina',nombre:'Tocino',             calorias_100g:540,proteina_g:4.0, carbs_g:0.0,grasa_g:57.0,fibra_g:0.0,unidad_comun:'2 tiras',       cantidad_comun_g:16 },
+  {id:'l41',categoria:'Proteina',nombre:'Chorizo',            calorias_100g:455,proteina_g:24.0,carbs_g:2.0,grasa_g:39.0,fibra_g:0.0,unidad_comun:'2 eslabones',   cantidad_comun_g:72 },
+  {id:'l42',categoria:'Proteina',nombre:'Tilapia',            calorias_100g:128,proteina_g:26.0,carbs_g:0.0,grasa_g:2.7, fibra_g:0.0,unidad_comun:'1 filete',      cantidad_comun_g:116},
+  {id:'l43',categoria:'Proteina',nombre:'Camaron',            calorias_100g:99, proteina_g:24.0,carbs_g:0.2,grasa_g:0.3, fibra_g:0.0,unidad_comun:'100g pelado',   cantidad_comun_g:100},
+  // Legumbres
+  {id:'l50',categoria:'Legumbre',nombre:'Frijol negro cocido',calorias_100g:132,proteina_g:8.9,carbs_g:23.7,grasa_g:0.5,fibra_g:8.7,unidad_comun:'1/2 taza',       cantidad_comun_g:86 },
+  {id:'l51',categoria:'Legumbre',nombre:'Frijoles refritos',  calorias_100g:120,proteina_g:6.0,carbs_g:16.0,grasa_g:4.0,fibra_g:4.5,unidad_comun:'1/2 taza',       cantidad_comun_g:118},
+  {id:'l52',categoria:'Legumbre',nombre:'Lentejas cocidas',   calorias_100g:116,proteina_g:9.0,carbs_g:20.1,grasa_g:0.4,fibra_g:7.9,unidad_comun:'1/2 taza',       cantidad_comun_g:99 },
+  {id:'l53',categoria:'Legumbre',nombre:'Garbanzo cocido',    calorias_100g:164,proteina_g:8.9,carbs_g:27.4,grasa_g:2.6,fibra_g:7.6,unidad_comun:'1/2 taza',       cantidad_comun_g:82 },
+  // Lacteos
+  {id:'l60',categoria:'Lacteo',nombre:'Leche entera',         calorias_100g:61, proteina_g:3.2,carbs_g:4.8, grasa_g:3.3,fibra_g:0.0,unidad_comun:'1 taza 240ml',   cantidad_comun_g:244},
+  {id:'l61',categoria:'Lacteo',nombre:'Leche descremada',     calorias_100g:35, proteina_g:3.4,carbs_g:5.0, grasa_g:0.1,fibra_g:0.0,unidad_comun:'1 taza 240ml',   cantidad_comun_g:244},
+  {id:'l62',categoria:'Lacteo',nombre:'Yogurt griego',        calorias_100g:73, proteina_g:10.0,carbs_g:3.6,grasa_g:0.4,fibra_g:0.0,unidad_comun:'1 taza 245g',    cantidad_comun_g:245},
+  {id:'l63',categoria:'Lacteo',nombre:'Yogurt natural',       calorias_100g:59, proteina_g:3.5,carbs_g:7.7, grasa_g:1.6,fibra_g:0.0,unidad_comun:'1 taza 245g',    cantidad_comun_g:245},
+  {id:'l64',categoria:'Lacteo',nombre:'Queso fresco',         calorias_100g:260,proteina_g:18.0,carbs_g:2.6,grasa_g:20.0,fibra_g:0.0,unidad_comun:'2 cucharadas',  cantidad_comun_g:30 },
+  {id:'l65',categoria:'Lacteo',nombre:'Queso Oaxaca',         calorias_100g:356,proteina_g:24.0,carbs_g:2.0,grasa_g:28.0,fibra_g:0.0,unidad_comun:'1/4 taza',      cantidad_comun_g:56 },
+  {id:'l66',categoria:'Lacteo',nombre:'Queso manchego',       calorias_100g:380,proteina_g:26.0,carbs_g:1.0,grasa_g:30.0,fibra_g:0.0,unidad_comun:'1 rebanada',    cantidad_comun_g:30 },
+  {id:'l67',categoria:'Lacteo',nombre:'Crema acida',          calorias_100g:198,proteina_g:3.2,carbs_g:4.3, grasa_g:19.4,fibra_g:0.0,unidad_comun:'2 cucharadas',  cantidad_comun_g:29 },
+  {id:'l68',categoria:'Lacteo',nombre:'Mantequilla',          calorias_100g:717,proteina_g:0.9,carbs_g:0.1, grasa_g:81.1,fibra_g:0.0,unidad_comun:'1 cucharada',   cantidad_comun_g:14 },
+  // Cereales y panes
+  {id:'l70',categoria:'Cereal',nombre:'Arroz blanco cocido',  calorias_100g:130,proteina_g:2.7,carbs_g:28.2,grasa_g:0.3,fibra_g:0.4,unidad_comun:'1 taza cocida',  cantidad_comun_g:186},
+  {id:'l71',categoria:'Cereal',nombre:'Arroz integral cocido',calorias_100g:123,proteina_g:2.6,carbs_g:25.6,grasa_g:1.0,fibra_g:1.8,unidad_comun:'1 taza cocida',  cantidad_comun_g:195},
+  {id:'l72',categoria:'Cereal',nombre:'Avena cruda',          calorias_100g:389,proteina_g:16.9,carbs_g:66.3,grasa_g:6.9,fibra_g:10.6,unidad_comun:'1/2 taza cruda',cantidad_comun_g:40},
+  {id:'l73',categoria:'Cereal',nombre:'Avena cocida',         calorias_100g:71, proteina_g:2.5,carbs_g:12.0,grasa_g:1.4,fibra_g:1.7,unidad_comun:'1 taza cocida',  cantidad_comun_g:234},
+  {id:'l74',categoria:'Cereal',nombre:'Cereal integral',      calorias_100g:267,proteina_g:11.7,carbs_g:67.0,grasa_g:3.3,fibra_g:16.7,unidad_comun:'30g (3/4 taza)',cantidad_comun_g:30},
+  {id:'l75',categoria:'Cereal',nombre:'Granola',              calorias_100g:450,proteina_g:9.0,carbs_g:64.0,grasa_g:18.0,fibra_g:5.0,unidad_comun:'1/2 taza',      cantidad_comun_g:58 },
+  {id:'l76',categoria:'Cereal',nombre:'Pan Bimbo blanco',     calorias_100g:265,proteina_g:8.8,carbs_g:49.3,grasa_g:3.7,fibra_g:2.0,unidad_comun:'1 rebanada',     cantidad_comun_g:25 },
+  {id:'l77',categoria:'Cereal',nombre:'Pan Bimbo integral',   calorias_100g:247,proteina_g:9.5,carbs_g:43.7,grasa_g:4.7,fibra_g:6.3,unidad_comun:'1 rebanada',     cantidad_comun_g:38 },
+  {id:'l78',categoria:'Cereal',nombre:'Tortilla de maiz',     calorias_100g:218,proteina_g:5.7,carbs_g:46.4,grasa_g:2.5,fibra_g:6.0,unidad_comun:'1 tortilla',     cantidad_comun_g:26 },
+  {id:'l79',categoria:'Cereal',nombre:'Tortilla de harina',   calorias_100g:306,proteina_g:8.4,carbs_g:51.4,grasa_g:7.9,fibra_g:2.4,unidad_comun:'1 tortilla med', cantidad_comun_g:45 },
+  {id:'l80',categoria:'Cereal',nombre:'Bolillo',              calorias_100g:257,proteina_g:8.0,carbs_g:50.0,grasa_g:2.2,fibra_g:2.0,unidad_comun:'1 bolillo',       cantidad_comun_g:90 },
+  {id:'l81',categoria:'Cereal',nombre:'Pasta espagueti cocida',calorias_100g:158,proteina_g:5.8,carbs_g:30.6,grasa_g:0.9,fibra_g:1.8,unidad_comun:'1 taza cocida', cantidad_comun_g:140},
+  {id:'l82',categoria:'Cereal',nombre:'Quinoa cocida',        calorias_100g:120,proteina_g:4.4,carbs_g:21.3,grasa_g:1.9,fibra_g:2.8,unidad_comun:'1 taza cocida',  cantidad_comun_g:185},
+  {id:'l83',categoria:'Cereal',nombre:'Papa',                 calorias_100g:87, proteina_g:1.9,carbs_g:20.1,grasa_g:0.1,fibra_g:1.8,unidad_comun:'1 papa med',     cantidad_comun_g:173},
+  {id:'l84',categoria:'Cereal',nombre:'Camote',               calorias_100g:86, proteina_g:1.6,carbs_g:20.1,grasa_g:0.1,fibra_g:3.0,unidad_comun:'1 camote med',   cantidad_comun_g:130},
+  {id:'l85',categoria:'Cereal',nombre:'Totopos de maiz',      calorias_100g:489,proteina_g:6.5,carbs_g:64.5,grasa_g:23.0,fibra_g:4.5,unidad_comun:'1 oz (puño)',   cantidad_comun_g:28 },
+  // Grasas y condimentos
+  {id:'l90',categoria:'Grasa',nombre:'Aceite de oliva',       calorias_100g:884,proteina_g:0.0,carbs_g:0.0, grasa_g:100.0,fibra_g:0.0,unidad_comun:'1 cucharada',  cantidad_comun_g:14 },
+  {id:'l91',categoria:'Grasa',nombre:'Aceite vegetal',        calorias_100g:884,proteina_g:0.0,carbs_g:0.0, grasa_g:100.0,fibra_g:0.0,unidad_comun:'1 cucharada',  cantidad_comun_g:14 },
+  {id:'l92',categoria:'Grasa',nombre:'Nuez',                  calorias_100g:654,proteina_g:15.2,carbs_g:13.7,grasa_g:65.2,fibra_g:6.7,unidad_comun:'1 oz (~14 piezas)',cantidad_comun_g:28},
+  {id:'l93',categoria:'Grasa',nombre:'Almendra',              calorias_100g:579,proteina_g:21.2,carbs_g:21.5,grasa_g:49.9,fibra_g:12.5,unidad_comun:'1 oz (~23 piezas)',cantidad_comun_g:28},
+  {id:'l94',categoria:'Grasa',nombre:'Cacahuate',             calorias_100g:567,proteina_g:25.8,carbs_g:16.1,grasa_g:49.2,fibra_g:8.5,unidad_comun:'1 oz / puño',  cantidad_comun_g:28 },
+  {id:'l95',categoria:'Grasa',nombre:'Mayonesa',              calorias_100g:680,proteina_g:0.9,carbs_g:0.6, grasa_g:75.0,fibra_g:0.0,unidad_comun:'1 cucharada',   cantidad_comun_g:15 },
+  // Salsas y condimentos
+  {id:'l96',categoria:'Condimento',nombre:'Salsa verde',      calorias_100g:26, proteina_g:1.3,carbs_g:4.5, grasa_g:0.5,fibra_g:1.4,unidad_comun:'2 cucharadas',   cantidad_comun_g:30 },
+  {id:'l97',categoria:'Condimento',nombre:'Salsa roja',       calorias_100g:36, proteina_g:1.5,carbs_g:7.0, grasa_g:0.5,fibra_g:1.6,unidad_comun:'2 cucharadas',   cantidad_comun_g:30 },
+  {id:'l98',categoria:'Condimento',nombre:'Caldo de pollo',   calorias_100g:6,  proteina_g:0.6,carbs_g:0.8, grasa_g:0.2,fibra_g:0.0,unidad_comun:'1 taza 240ml',   cantidad_comun_g:240},
+  {id:'l99',categoria:'Condimento',nombre:'Miel',             calorias_100g:304,proteina_g:0.3,carbs_g:82.4,grasa_g:0.0,fibra_g:0.2,unidad_comun:'1 cucharada',    cantidad_comun_g:21 },
+  {id:'la0',categoria:'Condimento',nombre:'Crema para cocinar',calorias_100g:198,proteina_g:2.7,carbs_g:3.5,grasa_g:19.4,fibra_g:0.0,unidad_comun:'2 cucharadas',  cantidad_comun_g:29 },
+  {id:'la1',categoria:'Condimento',nombre:'Ketchup',          calorias_100g:100,proteina_g:1.3,carbs_g:26.0,grasa_g:0.5,fibra_g:0.3,unidad_comun:'1 cucharada',    cantidad_comun_g:17 },
+];
+
 async function loadIngredientes() {
+  // Return cache if already loaded
   if (_cache.ingredientes && _cache.ingredientes.length) return _cache.ingredientes;
-  if (!CONFIG.scriptUrl) return [];
-  try {
-    const data = await apiGet({ action: 'getIngredientes' });
-    const items = data && data.items ? data.items : [];
-    if (items.length) _cache.ingredientes = items;   // only cache if we got real data
-    return items;
-  } catch (err) {
-    console.warn('loadIngredientes error:', err);
-    return [];
+  // Try Sheets first
+  if (CONFIG.scriptUrl) {
+    try {
+      const data  = await apiGet({ action: 'getIngredientes' });
+      const items = data && data.items ? data.items : [];
+      if (items.length) {
+        _cache.ingredientes = items;
+        return items;
+      }
+    } catch (err) {
+      console.warn('loadIngredientes Sheets error, using local fallback:', err.message);
+    }
   }
+  // Fallback: always return local library
+  _cache.ingredientes = LOCAL_INGREDIENTES;
+  return LOCAL_INGREDIENTES;
 }
 
 async function loadRecetario() {
   if (_cache.recetario && _cache.recetario.length) return _cache.recetario;
   if (!CONFIG.scriptUrl) return [];
   try {
-    const data = await apiGet({ action: 'getRecetario' });
+    const data  = await apiGet({ action: 'getRecetario' });
     const items = data && data.items ? data.items : [];
     if (items.length) _cache.recetario = items;
     return items;
