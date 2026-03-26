@@ -2130,6 +2130,7 @@ async function loadIngredientes() {
   if (!CONFIG.scriptUrl) return [];
   try {
     const resp = await apiGet({ action: 'getIngredientes' });
+    console.log('[VitaTrack] getIngredientes resp items:', resp && resp.items ? resp.items.length : 'no items');
     const raw  = resp && Array.isArray(resp.items) ? resp.items : [];
     const items = raw.map(r => ({
       _type:            'ing',
@@ -2160,6 +2161,7 @@ async function loadProductos() {
   if (!CONFIG.scriptUrl) return [];
   try {
     const resp  = await apiGet({ action: 'getProductos' });
+    console.log('[VitaTrack] getProductos resp:', JSON.stringify(resp).slice(0, 200));
     const raw   = resp && Array.isArray(resp.items) ? resp.items : [];
     const items = raw.map(r => ({
       _type:        'prod',
