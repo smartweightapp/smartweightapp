@@ -697,6 +697,53 @@
 
 
 
+    /* ── WEIGHT TREND PREDICTION ───────────────────────────── */
+    .trend-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1rem 1.1rem;
+      margin-top: .75rem;
+      position: relative;
+    }
+    .trend-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: linear-gradient(180deg, var(--lime), var(--ice));
+      border-radius: var(--r) 0 0 var(--r);
+    }
+    .trend-header {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      margin-bottom: .7rem;
+    }
+    .trend-title { font-size: .72rem; font-weight: 700; letter-spacing: .07em;
+                   text-transform: uppercase; color: var(--text-2); }
+    .trend-window { font-size: .65rem; color: var(--text-3); }
+    .trend-body { display: flex; align-items: flex-start; gap: 1rem; }
+    .trend-stats { flex: 1; display: flex; flex-direction: column; gap: .5rem; }
+    .trend-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .trend-lbl { font-size: .7rem; color: var(--text-2); }
+    .trend-val { font-size: .92rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .trend-val.positive { color: var(--amber); }
+    .trend-val.negative { color: #4dffb8; }
+    .trend-val.neutral  { color: var(--text-2); }
+    .trend-arrow { font-size: 1.2rem; margin-right: .2rem; }
+    .trend-sparkline { flex-shrink: 0; }
+    .trend-badge {
+      display: inline-block; padding: .18rem .6rem;
+      border-radius: 50px; font-size: .65rem; font-weight: 700;
+      margin-top: .4rem;
+    }
+    .trend-badge.surplus  { background: rgba(255,184,77,.15); color: var(--amber); }
+    .trend-badge.deficit  { background: rgba(77,255,184,.15); color: #4dffb8; }
+    .trend-badge.balanced { background: rgba(181,255,77,.12); color: var(--lime); }
+    .trend-badge.nodata   { background: var(--bg-card2); color: var(--text-3); }
+    .trend-disclaimer { font-size: .62rem; color: var(--text-3);
+                        margin-top: .6rem; line-height: 1.4; font-style: italic; }
+
     /* ── INGREDIENT ROW WITH PORTION ──────────────────────────── */
     .ingredient-row-wrap { display: flex; flex-direction: column; margin-bottom: .45rem; }
     .ing-portion-row {
@@ -1129,6 +1176,43 @@
       <div class="balance-net">
         <span class="balance-net-label">Balance neto</span>
         <span class="balance-net-val mono" id="netCalories">0 kcal</span>
+      </div>
+    </div>
+
+    <!-- Weight Trend Prediction -->
+    <div class="trend-card" id="weightTrendCard" style="display:none">
+      <div class="trend-header">
+        <span class="trend-title">📈 Tendencia de Peso</span>
+        <span class="trend-window" id="trendWindow">últimos 7 días</span>
+      </div>
+      <div class="trend-body">
+        <div class="trend-stats">
+          <div class="trend-row">
+            <span class="trend-lbl">Promedio diario</span>
+            <span class="trend-val mono" id="trendAvgCal">-- kcal</span>
+          </div>
+          <div class="trend-row">
+            <span class="trend-lbl">vs TDEE</span>
+            <span class="trend-val mono" id="trendVsTdee">--</span>
+          </div>
+          <div class="trend-row">
+            <span class="trend-lbl">Peso estimado 4 sem</span>
+            <span class="trend-val mono" id="trendWeight4w">-- kg</span>
+          </div>
+          <div class="trend-row">
+            <span class="trend-lbl">Cambio proyectado</span>
+            <span class="trend-val mono" id="trendDelta">--</span>
+          </div>
+          <span class="trend-badge nodata" id="trendBadge">Sin datos</span>
+          <div class="trend-disclaimer">
+            Estimación basada en déficit/superávit calórico.<br>
+            1 kg grasa ≈ 7,700 kcal. No sustituye asesoría médica.
+          </div>
+        </div>
+        <div class="trend-sparkline">
+          <canvas id="trendSparkCanvas" width="90" height="72"
+            style="display:block;border-radius:6px;opacity:.9"></canvas>
+        </div>
       </div>
     </div>
 
@@ -3126,6 +3210,9 @@ function renderDashboard() {
   netEl.textContent  = `${net > 0 ? '+' : ''}${net.toLocaleString()} kcal`;
   netEl.className    = `balance-net-val mono ${net > 0 ? 'net-positive' : 'net-negative'}`;
 
+  // Weight trend prediction
+  renderWeightTrend();
+
   // Profile snippet
   const snip = document.getElementById('profileSnippet');
   if (prof.weight && prof.height && prof.age) {
@@ -3142,6 +3229,111 @@ function renderDashboard() {
       <button class="btn-secondary" style="width:auto;padding:0.4rem 1rem;margin-top:0.75rem;font-size:0.78rem;" onclick="openSettings()">Editar perfil</button>
     `;
   }
+}
+
+/* ── WEIGHT TREND PREDICTION ────────────────────────────────── */
+function renderWeightTrend() {
+  const prof   = state.profiles[state.profile];
+  const tdee   = calculateTDEE(prof);
+  const card   = document.getElementById('weightTrendCard');
+  if (!card) return;
+
+  // Gather all foods across all dates, grouped by date
+  const allFoods = state.foods[state.profile];
+  if (!allFoods.length || !tdee || !prof.weight) {
+    card.style.display = 'none';
+    return;
+  }
+
+  // Build daily calorie map
+  const dayMap = {};
+  allFoods.forEach(f => {
+    const d   = sanitizeDate(f.date);
+    const cal = Number(f.totalCalories || f.calories) || 0;
+    dayMap[d] = (dayMap[d] || 0) + cal;
+  });
+
+  // Sort dates descending and use up to last 30 days with data
+  const sortedDates = Object.keys(dayMap).sort((a,b) => b.localeCompare(a));
+  if (sortedDates.length < 2) { card.style.display = 'none'; return; }
+
+  const useDates  = sortedDates.slice(0, 30).reverse(); // oldest → newest
+  const dayCals   = useDates.map(d => dayMap[d]);
+  const avgCal    = Math.round(dayCals.reduce((s,c) => s+c, 0) / dayCals.length);
+  const dailyDiff = avgCal - tdee;           // positive = surplus, negative = deficit
+
+  // 7,700 kcal ≈ 1 kg body fat
+  const kcalPerKg  = 7700;
+  const weekDelta  = (dailyDiff * 7) / kcalPerKg;
+  const fourWkDelta= (dailyDiff * 28) / kcalPerKg;
+  const proj4w     = prof.weight + fourWkDelta;
+
+  // Window label
+  const n = useDates.length;
+  document.getElementById('trendWindow').textContent =
+    n <= 7 ? 'últimos ' + n + ' días' :
+    n <= 14 ? 'últimas 2 semanas' :
+    n <= 21 ? 'últimas 3 semanas' : 'últimos 30 días';
+
+  // Fill stats
+  document.getElementById('trendAvgCal').textContent = avgCal.toLocaleString() + ' kcal';
+
+  const vsTdeeEl = document.getElementById('trendVsTdee');
+  vsTdeeEl.textContent = (dailyDiff > 0 ? '+' : '') + dailyDiff.toLocaleString() + ' kcal/día';
+  vsTdeeEl.className   = 'trend-val mono ' + (Math.abs(dailyDiff) < 100 ? 'neutral' : dailyDiff > 0 ? 'positive' : 'negative');
+
+  document.getElementById('trendWeight4w').textContent = proj4w.toFixed(1) + ' kg';
+
+  const deltaEl = document.getElementById('trendDelta');
+  const deltaStr = (fourWkDelta > 0 ? '+' : '') + fourWkDelta.toFixed(2) + ' kg en 4 sem';
+  deltaEl.textContent = deltaStr;
+  deltaEl.className   = 'trend-val mono ' + (Math.abs(fourWkDelta) < 0.3 ? 'neutral' : fourWkDelta > 0 ? 'positive' : 'negative');
+
+  const badge = document.getElementById('trendBadge');
+  if (Math.abs(dailyDiff) < 100) {
+    badge.textContent = '⚖️ Balance estable';
+    badge.className   = 'trend-badge balanced';
+  } else if (dailyDiff > 0) {
+    badge.textContent = '📈 Superávit · ganando peso';
+    badge.className   = 'trend-badge surplus';
+  } else {
+    badge.textContent = '📉 Déficit · bajando peso';
+    badge.className   = 'trend-badge deficit';
+  }
+
+  // Sparkline — mini bar chart of daily calories vs TDEE
+  const canvas = document.getElementById('trendSparkCanvas');
+  if (canvas && canvas.getContext) {
+    const ctx   = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Only show last 14 bars max in the tiny canvas
+    const bars  = dayCals.slice(-14);
+    const maxC  = Math.max(...bars, tdee) * 1.15;
+    const barW  = Math.floor((W - 2) / bars.length) - 1;
+    const tdeeY = H - Math.round((tdee / maxC) * (H - 4)) - 2;
+
+    // TDEE reference line
+    ctx.strokeStyle = 'rgba(181,255,77,0.35)';
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    ctx.moveTo(0, tdeeY); ctx.lineTo(W, tdeeY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Bars
+    bars.forEach((cal, i) => {
+      const barH  = Math.max(2, Math.round((cal / maxC) * (H - 4)));
+      const x     = 1 + i * (barW + 1);
+      const isOver = cal > tdee;
+      ctx.fillStyle = isOver ? 'rgba(255,184,77,0.75)' : 'rgba(77,255,184,0.7)';
+      ctx.fillRect(x, H - barH - 2, barW, barH);
+    });
+  }
+
+  card.style.display = 'block';
 }
 
 /* ── RENDER FOOD LIST ───────────────────────────────────────── */
