@@ -2415,6 +2415,15 @@ function removeIngredientRow(id) {
   if (row) row.remove();
   delete _rowNutrition[id];
   if (!document.getElementById('ingredientRows').children.length) addIngredientRow('', true);
+  // If there are no more resolved ingredients, clear the calorie field
+  // so it doesn't keep the stale recipe/previous value
+  const remaining = Object.keys(_rowNutrition).length;
+  if (remaining === 0) {
+    const calInput = document.getElementById('foodCalories');
+    const badge    = document.getElementById('foodCalBadge');
+    if (calInput) { calInput.value = ''; calInput.classList.remove('manual-edited'); }
+    if (badge)    badge.style.display = 'none';
+  }
   updateTotalsFromResolved();
   resetFoodCalc();
 }
@@ -2643,14 +2652,14 @@ function updateTotalsFromResolved() {
   document.getElementById('mFiber').textContent   = Math.round(sum.fiber_g               * portions);
   if (macros) macros.style.display = 'flex';
 
-  // Also auto-fill calorie field from resolved ingredients
+  // Auto-fill calorie field from resolved ingredients (overrides recipe fixed value)
   const totalCal = Math.round(sum.calories * portions);
   const calInput = document.getElementById('foodCalories');
   const badge    = document.getElementById('foodCalBadge');
   if (calInput && !calInput.classList.contains('manual-edited')) {
     calInput.value = totalCal || '';
     if (badge && totalCal) {
-      badge.textContent   = 'Sheets';
+      badge.textContent   = 'Calculado';
       badge.className     = 'calorie-result-badge';
       badge.style.display = 'inline-flex';
     }
@@ -2865,40 +2874,155 @@ async function renderRecetarioModal() {
     </div>`).join('');
 }
 
-function loadRecipeIntoForm(r) {
-  // Fill form from Recetario row
+async function loadRecipeIntoForm(r) {
+  // Fill form header
   document.getElementById('foodName').value = r.nombre || '';
   if (r.meal) document.getElementById('foodMeal').value = r.meal;
 
-  // Clear ingredient rows
+  // Clear ingredient rows and nutrition cache
   document.getElementById('ingredientRows').innerHTML = '';
   _ingredientIdCounter = 0;
   Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
 
-  // Parse ingredient list and add rows (plain text, no Sheets lookup)
+  // Parse ingredient lines from recipe
   const ingLines = String(r.ingredientes || '').split(',').map(s => s.trim()).filter(Boolean);
-  ingLines.forEach(l => addIngredientRow(l, true));
+  if (!ingLines.length) { addIngredientRow('', true); }
 
-  // Pre-fill calories
-  if (r.calorias) {
-    const calInput = document.getElementById('foodCalories');
-    if (calInput) calInput.value = r.calorias;
-    const badge = document.getElementById('foodCalBadge');
-    if (badge) { badge.textContent = 'Recetario'; badge.style.display = 'inline-flex'; badge.className = 'calorie-result-badge'; }
+  // Load libraries (cached — instant on second call)
+  const [ings, prods] = await Promise.all([loadIngredientes(), loadProductos()]);
+
+  // Try to match each ingredient line to a known library entry
+  let resolvedCount = 0;
+  for (const line of ingLines) {
+    const id = ++_ingredientIdCounter;
+    const wrap = document.getElementById('ingredientRows');
+    const rowEl = document.createElement('div');
+    rowEl.className = 'ingredient-row-wrap';
+    rowEl.id = 'irow-' + id;
+    rowEl.innerHTML =
+      '<div class="ingredient-row">' +
+        '<div class="ingredient-input-wrap" style="flex:1;position:relative">' +
+          '<input type="text" class="ingredient-input" id="ing-' + id + '" ' +
+            'placeholder="Escribe para buscar…" autocomplete="off" ' +
+            'oninput="onIngredientInput(event,' + id + ')" ' +
+            'onblur="setTimeout(()=>hideDropdown(\"ing-ac-" + id + "\"),200)" />' +
+          '<div class="ac-dropdown" id="ing-ac-' + id + '" style="display:none"></div>' +
+        '</div>' +
+        '<button class="ingredient-remove" onclick="removeIngredientRow(' + id + ')" title="Quitar">✕</button>' +
+      '</div>' +
+      '<div class="ing-portion-row" id="ing-portion-' + id + '" style="display:none">' +
+        '<div class="ing-qty-wrap">' +
+          '<button class="ing-factor-btn" onclick="changeIngQty(' + id + ',-0.5)">−</button>' +
+          '<input type="number" class="ing-factor-input" id="ing-qty-' + id + '" ' +
+            'value="1" min="0.25" step="0.5" oninput="onIngQtyChange(' + id + ')" />' +
+          '<button class="ing-factor-btn" onclick="changeIngQty(' + id + ',0.5)">+</button>' +
+        '</div>' +
+        '<span class="ing-unit-label" id="ing-unit-' + id + '">unidad</span>' +
+        '<span class="ingredient-cal-badge" id="ing-cal-' + id + '" style="display:inline-flex">— kcal</span>' +
+      '</div>';
+    wrap.appendChild(rowEl);
+
+    // Try to match the ingredient line to library by looking for keyword overlap
+    const lq   = line.toLowerCase().replace(/[\d\/\.×x\s]+/g, ' ').trim();
+    const words = lq.split(/\s+/).filter(w => w.length > 2);
+
+    let matched = null;
+    let matchScore = 0;
+
+    // Check Ingredientes first
+    for (const ing of ings) {
+      const name = String(ing.nombre || '').toLowerCase();
+      const score = words.filter(w => name.includes(w)).length;
+      if (score > matchScore) { matchScore = score; matched = { _type: 'ing', ...ing }; }
+    }
+    // Then Productos (only override if better score)
+    for (const prod of prods) {
+      const name = (String(prod.nombre || '') + ' ' + String(prod.marca || '')).toLowerCase();
+      const score = words.filter(w => name.includes(w)).length;
+      if (score > matchScore) { matchScore = score; matched = { _type: 'prod', ...prod }; }
+    }
+
+    const inp = document.getElementById('ing-' + id);
+    if (matched && matchScore > 0) {
+      // Resolved — show matched name and populate _rowNutrition
+      const isProduct = matched._type === 'prod';
+      const displayName = isProduct
+        ? [matched.marca, matched.nombre].filter(Boolean).join(' ')
+        : matched.nombre;
+      if (inp) inp.value = displayName;
+
+      // Parse qty from the original line (e.g. "2 tazas avena" → qty=2)
+      const qtyMatch = line.match(/^(\d+\.?\d*)\s*/);
+      const qty = qtyMatch ? parseFloat(qtyMatch[1]) : 1;
+
+      const normalized = isProduct
+        ? {
+            nombre: displayName,
+            calorias_100g: Number(matched.calorias) || 0,
+            proteina_g: Number(matched.proteina_g) || 0,
+            carbs_g: Number(matched.carbs_g) || 0,
+            grasa_g: Number(matched.grasa_g) || 0,
+            fibra_g: Number(matched.fibra_g) || 0,
+            unidad_comun: matched.presentacion || '1 porcion',
+            cantidad_comun_g: Number(matched.porcion_g) || 100,
+            _isProduct: true,
+            _fixedCal: Number(matched.calorias) || 0,
+          }
+        : matched;
+
+      _rowNutrition[id] = { row: normalized, qty };
+
+      // Show portion row
+      const portRow = document.getElementById('ing-portion-' + id);
+      const unitLbl = document.getElementById('ing-unit-' + id);
+      const qtyInp  = document.getElementById('ing-qty-' + id);
+      if (portRow) portRow.style.display = 'flex';
+      if (unitLbl) {
+        const g = Math.round((Number(normalized.cantidad_comun_g) || 100) * qty);
+        unitLbl.innerHTML =
+          '<span style="color:var(--text-3)">' + qty + ' × ' + (normalized.unidad_comun || '100g') + '</span>' +
+          '<span style="color:var(--text-2);margin-left:.35rem">(' + g + 'g)</span>';
+      }
+      if (qtyInp) qtyInp.value = qty;
+
+      const calBadge = document.getElementById('ing-cal-' + id);
+      if (calBadge) {
+        const cal = calcIngCalories(normalized, qty);
+        calBadge.textContent = cal + ' kcal';
+      }
+      resolvedCount++;
+    } else {
+      // Not resolved — leave as plain text, user can type to search
+      if (inp) inp.value = line;
+    }
   }
 
-  // Pre-fill macros display
-  if (r.proteina_g || r.carbs_g || r.grasa_g) {
-    document.getElementById('mProtein').textContent = r.proteina_g || 0;
-    document.getElementById('mCarbs').textContent   = r.carbs_g   || 0;
-    document.getElementById('mFat').textContent     = r.grasa_g   || 0;
-    document.getElementById('mFiber').textContent   = 0;
-    const macros = document.getElementById('macrosSummary');
-    if (macros) macros.style.display = 'flex';
+  // Update calories from resolved ingredients
+  updateTotalsFromResolved();
+
+  // If nothing was resolved, show recipe's stored calories as fallback with manual badge
+  const calInput = document.getElementById('foodCalories');
+  const badge    = document.getElementById('foodCalBadge');
+  const resolved = Object.keys(_rowNutrition).length;
+  if (!resolved && r.calorias) {
+    if (calInput) { calInput.value = r.calorias; calInput.classList.add('manual-edited'); }
+    if (badge) {
+      badge.textContent = 'Recetario';
+      badge.className   = 'calorie-result-badge manual';
+      badge.style.display = 'inline-flex';
+    }
+  }
+
+  // Clear manual-edited if we have resolved ingredients (let live calc take over)
+  if (resolved > 0 && calInput) {
+    calInput.classList.remove('manual-edited');
   }
 
   closeRecetarioModal();
-  showToast(`"${r.nombre}" cargado ✓`, 'success');
+  const msg = resolvedCount > 0
+    ? '"' + (r.nombre || 'Receta') + '" cargada — ' + resolvedCount + '/' + ingLines.length + ' ingredientes reconocidos ✓'
+    : '"' + (r.nombre || 'Receta') + '" cargada — busca ingredientes manualmente';
+  showToast(msg, 'success');
 }
 
 /* ── ADD NEW INGREDIENT ──────────────────────────────────────── */
