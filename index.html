@@ -2111,7 +2111,18 @@ function hideDropdown(id) {
 }
 
 // In-memory cache so we don't hit Sheets on every keystroke
-const _cache = { ingredientes: null, recetario: null, productos: null };
+const _cache     = { ingredientes: null, recetario: null, productos: null };
+const _cacheTime = { ingredientes: 0,    recetario: 0,    productos: 0    };
+const _CACHE_TTL = 5 * 60 * 1000;  // 5 minutes
+
+function _isCacheValid(key) {
+  return _cache[key] && _cache[key].length > 0 &&
+         (Date.now() - (_cacheTime[key] || 0)) < _CACHE_TTL;
+}
+function _setCache(key, items) {
+  _cache[key]     = items;
+  _cacheTime[key] = Date.now();
+}
 
 /* ── LOCAL INGREDIENT FALLBACK ─────────────────────────────────
    Used when Sheets is not connected or returns empty.
