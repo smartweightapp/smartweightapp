@@ -2145,7 +2145,7 @@ async function loadIngredientes() {
       cantidad_comun_g: Number(r.cantidad_comun_g)|| 100,
       notas:            String(r.notas            || ''),
     })).filter(r => r.nombre && r.nombre.trim() !== '');
-    _setCache('ingredientes', items);
+    if (items.length > 0) _setCache('ingredientes', items);  // only cache non-empty
     return items;
   } catch (err) {
     console.warn('loadIngredientes error:', err.message);
@@ -2177,7 +2177,7 @@ async function loadProductos() {
       porcion_g:    Number(r.porcion_g)   || 100,
       notas:        String(r.notas        || ''),
     })).filter(r => r.nombre && r.nombre.trim() !== '');
-    _setCache('productos', items);
+    if (items.length > 0) _setCache('productos', items);  // only cache non-empty
     return items;
   } catch (e) {
     console.warn('loadProductos error:', e.message);
@@ -2408,7 +2408,7 @@ async function _searchIngSheet(rowId, query) {
     const presentacion = (r.presentacion != null) ? String(r.presentacion) : '';
     const calorias     = (r.calorias     != null) ? Number(r.calorias)     : 0;
     const porcion_g    = Number(r.porcion_g) || 100;
-    if (!nombre || !calorias) continue;
+    if (!nombre) continue;
     if (!nombre.toLowerCase().includes(q) &&
         !marca.toLowerCase().includes(q) &&
         !categoria.toLowerCase().includes(q)) continue;
@@ -2441,10 +2441,13 @@ async function _searchIngSheet(rowId, query) {
   if (!hits.length) {
     if (dd) {
       const noUrl = !CONFIG.scriptUrl;
+      // Debug: log array lengths to console so we know if data loaded
+      if (!noUrl) console.warn('[VitaTrack] No hits for "' + query + '". ings=' + ings.length + ' prods=' + prods.length);
       dd.innerHTML = '<div class="ac-item" style="color:var(--text-3);cursor:default;font-size:.78rem">' +
         (noUrl
           ? '⚠ Conecta Google Sheets en ⚙ — los datos viven en tu hoja'
-          : 'Sin resultados para "' + escHtml(query) + '" — ¿agregar nuevo ingrediente?') +
+          : 'Sin resultados para "' + escHtml(query) + '"' +
+            (prods.length === 0 && ings.length === 0 ? ' — datos no cargados, presiona 🔄' : ' — ¿agregar nuevo ingrediente?')) +
         '</div>';
       dd.style.display = 'block';
     }
