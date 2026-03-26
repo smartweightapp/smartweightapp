@@ -2691,149 +2691,177 @@ async function loadRecipeIntoForm(r) {
   document.getElementById('foodName').value = r.nombre || '';
   if (r.meal) document.getElementById('foodMeal').value = r.meal;
 
-  // Clear ingredient rows and nutrition cache
+  // Clear rows and nutrition cache
   document.getElementById('ingredientRows').innerHTML = '';
   _ingredientIdCounter = 0;
   Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
 
-  // Parse ingredient lines from recipe
   const ingLines = String(r.ingredientes || '').split(',').map(s => s.trim()).filter(Boolean);
-  if (!ingLines.length) { addIngredientRow('', true); }
+  if (!ingLines.length) { addIngredientRow('', true); closeRecetarioModal(); return; }
 
-  // Load libraries (cached — instant on second call)
+  // Load libraries (5-min cache — fast on repeat)
   const [ings, prods] = await Promise.all([loadIngredientes(), loadProductos()]);
 
-  // Try to match each ingredient line to a known library entry
+  // ── Helpers ───────────────────────────────────────────────────
+
+  /** Strip leading quantity and unit words to extract ingredient keyword */
+  function _extractIngName(line) {
+    let s = line.trim().toLowerCase();
+    s = s.replace(/^\d+\/\d+\s+/, '');          // "1/4 "
+    s = s.replace(/^\d+\.?\d*[a-z]*\s+/, '');   // "2 " or "150g "
+    // Remove leading unit words
+    const units = ['taza','tazas','tbsp','tsp','cucharada','cucharadas','cucharadita',
+                   'gramos','gr','kg','ml','litro','oz','lb','pieza','piezas','lata',
+                   'rebanada','rebanadas','diente','dientes','pizca','tiras','eslabones',
+                   'sobre','sobres','porcion','porciones','vaso','vasos','bote'];
+    for (const u of units) {
+      s = s.replace(new RegExp('^' + u + 's?\\s+', 'i'), '');
+    }
+    return s.trim();
+  }
+
+  /** Score how well a keyword matches a library ingredient name (higher = better) */
+  function _scoreMatch(keyword, libName) {
+    const k = keyword.toLowerCase();
+    const n = libName.toLowerCase();
+    if (n === k) return 10;                        // exact: "chile serrano" == "chile serrano"
+    if (n.startsWith(k + ' ')) return 8;           // "sal" → "sal de mesa"
+    if (k.startsWith(n + ' ')) return 7;           // "leche entera..." → "leche entera"
+    if (n.startsWith(k)) return 6;                 // "salmon".startsWith("sal") — kept but low
+    // Plural stem: "huevos" → first word of "huevo entero"
+    const kStem = k.replace(/es$/, '').replace(/s$/, '');
+    const nFirst = n.split(' ')[0];
+    if (kStem === nFirst || k === nFirst) return 5;
+    // Word overlap (multi-word keywords like "aceite de oliva")
+    const kWords = k.split(/\s+/).filter(w => w.length > 2);
+    if (kWords.length > 1) {
+      const found = kWords.filter(w => n.includes(w)).length;
+      if (found === kWords.length) return 4;
+      if (found > 0) return found;
+    }
+    return -1;
+  }
+
+  // ── Match and render each ingredient line ─────────────────────
   let resolvedCount = 0;
   for (const line of ingLines) {
-    const id = ++_ingredientIdCounter;
+    const rowId = ++_ingredientIdCounter;
+
+    // Build row DOM
     const wrap = document.getElementById('ingredientRows');
     const rowEl = document.createElement('div');
     rowEl.className = 'ingredient-row-wrap';
-    rowEl.id = 'irow-' + id;
+    rowEl.id = 'irow-' + rowId;
     rowEl.innerHTML =
       '<div class="ingredient-row">' +
         '<div class="ingredient-input-wrap" style="flex:1;position:relative">' +
-          '<input type="text" class="ingredient-input" id="ing-' + id + '" ' +
+          '<input type="text" class="ingredient-input" id="ing-' + rowId + '" ' +
             'placeholder="Escribe para buscar…" autocomplete="off" ' +
-            'oninput="onIngredientInput(event,' + id + ')" ' +
-            'onblur="setTimeout(()=>hideDropdown(\"ing-ac-" + id + "\"),200)" />' +
-          '<div class="ac-dropdown" id="ing-ac-' + id + '" style="display:none"></div>' +
+            'oninput="onIngredientInput(event,' + rowId + ')" ' +
+            'onblur="setTimeout(()=>hideDropdown(\'ing-ac-' + rowId + '\'),200)" />' +
+          '<div class="ac-dropdown" id="ing-ac-' + rowId + '" style="display:none"></div>' +
         '</div>' +
-        '<button class="ingredient-remove" onclick="removeIngredientRow(' + id + ')" title="Quitar">✕</button>' +
+        '<button class="ingredient-remove" onclick="removeIngredientRow(' + rowId + ')" title="Quitar">✕</button>' +
       '</div>' +
-      '<div class="ing-portion-row" id="ing-portion-' + id + '" style="display:none">' +
+      '<div class="ing-portion-row" id="ing-portion-' + rowId + '" style="display:none">' +
         '<div class="ing-qty-wrap">' +
-          '<button class="ing-factor-btn" onclick="changeIngQty(' + id + ',-0.5)">−</button>' +
-          '<input type="number" class="ing-factor-input" id="ing-qty-' + id + '" ' +
-            'value="1" min="0.25" step="0.5" oninput="onIngQtyChange(' + id + ')" />' +
-          '<button class="ing-factor-btn" onclick="changeIngQty(' + id + ',0.5)">+</button>' +
+          '<button class="ing-factor-btn" onclick="changeIngQty(' + rowId + ',-0.5)">−</button>' +
+          '<input type="number" class="ing-factor-input" id="ing-qty-' + rowId + '" ' +
+            'value="1" min="0.25" step="0.5" oninput="onIngQtyChange(' + rowId + ')" />' +
+          '<button class="ing-factor-btn" onclick="changeIngQty(' + rowId + ',0.5)">+</button>' +
         '</div>' +
-        '<span class="ing-unit-label" id="ing-unit-' + id + '">unidad</span>' +
-        '<span class="ingredient-cal-badge" id="ing-cal-' + id + '" style="display:inline-flex">— kcal</span>' +
+        '<span class="ing-unit-label" id="ing-unit-' + rowId + '">unidad</span>' +
+        '<span class="ingredient-cal-badge" id="ing-cal-' + rowId + '" style="display:inline-flex">— kcal</span>' +
       '</div>';
     wrap.appendChild(rowEl);
 
-    // Try to match the ingredient line to library by looking for keyword overlap
-    const lq   = line.toLowerCase().replace(/[\d\/\.×x\s]+/g, ' ').trim();
-    const words = lq.split(/\s+/).filter(w => w.length > 2);
+    const inp = document.getElementById('ing-' + rowId);
 
-    let matched = null;
-    let matchScore = 0;
+    // Extract ingredient keyword and parse quantity
+    const keyword = _extractIngName(line);
+    const qtyM    = line.match(/^(\d+\.?\d*)\s*(?:[a-z]*\s+)?/i);
+    const fracM   = line.match(/^(\d+)\/(\d+)/);
+    const qty     = fracM
+      ? parseFloat(fracM[1]) / parseFloat(fracM[2])
+      : qtyM ? parseFloat(qtyM[1]) : 1;
 
-    // Check Ingredientes first
+    // Score against full library (ings + prods)
+    let bestScore = -1, bestMatch = null;
+
     for (const ing of ings) {
-      const name = String(ing.nombre || '').toLowerCase();
-      const score = words.filter(w => name.includes(w)).length;
-      if (score > matchScore) { matchScore = score; matched = { _type: 'ing', ...ing }; }
+      const s = _scoreMatch(keyword, String(ing.nombre || ''));
+      if (s > bestScore) { bestScore = s; bestMatch = { _type: 'ing', ...ing }; }
     }
-    // Then Productos (only override if better score)
     for (const prod of prods) {
-      const name = (String(prod.nombre || '') + ' ' + String(prod.marca || '')).toLowerCase();
-      const score = words.filter(w => name.includes(w)).length;
-      if (score > matchScore) { matchScore = score; matched = { _type: 'prod', ...prod }; }
+      const name = (String(prod.nombre || '') + ' ' + String(prod.marca || '')).trim();
+      const s = _scoreMatch(keyword, name);
+      if (s > bestScore) { bestScore = s; bestMatch = { _type: 'prod', ...prod }; }
     }
 
-    const inp = document.getElementById('ing-' + id);
-    if (matched && matchScore > 0) {
-      // Resolved — show matched name and populate _rowNutrition
-      const isProduct = matched._type === 'prod';
+    if (bestMatch && bestScore >= 4) {
+      // ── Resolved ─────────────────────────────────────────────
+      const isProduct = bestMatch._type === 'prod';
       const displayName = isProduct
-        ? [matched.marca, matched.nombre].filter(Boolean).join(' ')
-        : matched.nombre;
+        ? [bestMatch.marca, bestMatch.nombre].filter(Boolean).join(' ')
+        : bestMatch.nombre;
+
       if (inp) inp.value = displayName;
 
-      // Parse qty from the original line (e.g. "2 tazas avena" → qty=2)
-      const qtyMatch = line.match(/^(\d+\.?\d*)\s*/);
-      const qty = qtyMatch ? parseFloat(qtyMatch[1]) : 1;
+      const normalized = isProduct ? {
+        nombre:           displayName,
+        calorias_100g:    Number(bestMatch.calorias)   || 0,
+        proteina_g:       Number(bestMatch.proteina_g) || 0,
+        carbs_g:          Number(bestMatch.carbs_g)    || 0,
+        grasa_g:          Number(bestMatch.grasa_g)    || 0,
+        fibra_g:          Number(bestMatch.fibra_g)    || 0,
+        unidad_comun:     bestMatch.presentacion       || '1 porcion',
+        cantidad_comun_g: Number(bestMatch.porcion_g)  || 100,
+        _isProduct:       true,
+        _fixedCal:        Number(bestMatch.calorias)   || 0,
+      } : bestMatch;
 
-      const normalized = isProduct
-        ? {
-            nombre: displayName,
-            calorias_100g: Number(matched.calorias) || 0,
-            proteina_g: Number(matched.proteina_g) || 0,
-            carbs_g: Number(matched.carbs_g) || 0,
-            grasa_g: Number(matched.grasa_g) || 0,
-            fibra_g: Number(matched.fibra_g) || 0,
-            unidad_comun: matched.presentacion || '1 porcion',
-            cantidad_comun_g: Number(matched.porcion_g) || 100,
-            _isProduct: true,
-            _fixedCal: Number(matched.calorias) || 0,
-          }
-        : matched;
-
-      _rowNutrition[id] = { row: normalized, qty };
+      _rowNutrition[rowId] = { row: normalized, qty };
 
       // Show portion row
-      const portRow = document.getElementById('ing-portion-' + id);
-      const unitLbl = document.getElementById('ing-unit-' + id);
-      const qtyInp  = document.getElementById('ing-qty-' + id);
+      const portRow = document.getElementById('ing-portion-' + rowId);
+      const unitLbl = document.getElementById('ing-unit-' + rowId);
+      const qtyInp  = document.getElementById('ing-qty-' + rowId);
       if (portRow) portRow.style.display = 'flex';
+      if (qtyInp)  qtyInp.value = qty;
       if (unitLbl) {
         const g = Math.round((Number(normalized.cantidad_comun_g) || 100) * qty);
         unitLbl.innerHTML =
           '<span style="color:var(--text-3)">' + qty + ' × ' + (normalized.unidad_comun || '100g') + '</span>' +
           '<span style="color:var(--text-2);margin-left:.35rem">(' + g + 'g)</span>';
       }
-      if (qtyInp) qtyInp.value = qty;
-
-      const calBadge = document.getElementById('ing-cal-' + id);
-      if (calBadge) {
-        const cal = calcIngCalories(normalized, qty);
-        calBadge.textContent = cal + ' kcal';
-      }
+      const calBadge = document.getElementById('ing-cal-' + rowId);
+      if (calBadge) calBadge.textContent = calcIngCalories(normalized, qty) + ' kcal';
       resolvedCount++;
+
     } else {
-      // Not resolved — leave as plain text, user can type to search
+      // ── Not resolved — show original text, user can search manually ──
       if (inp) inp.value = line;
     }
   }
 
-  // Update calories from resolved ingredients
+  // Update total calories from resolved ingredients
   updateTotalsFromResolved();
 
-  // If nothing was resolved, show recipe's stored calories as fallback with manual badge
+  // If nothing resolved, fall back to recipe's stored calories
   const calInput = document.getElementById('foodCalories');
   const badge    = document.getElementById('foodCalBadge');
-  const resolved = Object.keys(_rowNutrition).length;
-  if (!resolved && r.calorias) {
+  if (Object.keys(_rowNutrition).length === 0 && r.calorias) {
     if (calInput) { calInput.value = r.calorias; calInput.classList.add('manual-edited'); }
-    if (badge) {
-      badge.textContent = 'Recetario';
-      badge.className   = 'calorie-result-badge manual';
-      badge.style.display = 'inline-flex';
-    }
-  }
-
-  // Clear manual-edited if we have resolved ingredients (let live calc take over)
-  if (resolved > 0 && calInput) {
+    if (badge) { badge.textContent = 'Recetario'; badge.className = 'calorie-result-badge manual'; badge.style.display = 'inline-flex'; }
+  } else if (calInput) {
     calInput.classList.remove('manual-edited');
   }
 
   closeRecetarioModal();
-  const msg = resolvedCount > 0
-    ? '"' + (r.nombre || 'Receta') + '" cargada — ' + resolvedCount + '/' + ingLines.length + ' ingredientes reconocidos ✓'
-    : '"' + (r.nombre || 'Receta') + '" cargada — busca ingredientes manualmente';
+  const pct  = ingLines.length ? Math.round(resolvedCount / ingLines.length * 100) : 0;
+  const msg  = resolvedCount > 0
+    ? '"' + (r.nombre || 'Receta') + '" cargada — ' + resolvedCount + '/' + ingLines.length + ' ingredientes (' + pct + '%) ✓'
+    : '"' + (r.nombre || 'Receta') + '" cargada — edita ingredientes manualmente';
   showToast(msg, 'success');
 }
 
