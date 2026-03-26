@@ -2111,6 +2111,20 @@ function hideDropdown(id) {
 }
 
 
+/* ── SHEETS LIBRARY CACHE (5-min TTL) ───────────────────────── */
+const _cache     = { ingredientes: null, recetario: null, productos: null };
+const _cacheTime = { ingredientes: 0,    recetario: 0,    productos: 0    };
+const _CACHE_TTL = 5 * 60 * 1000;
+
+function _isCacheValid(key) {
+  return _cache[key] && _cache[key].length > 0 &&
+         (Date.now() - (_cacheTime[key] || 0)) < _CACHE_TTL;
+}
+function _setCache(key, items) {
+  _cache[key]     = items;
+  _cacheTime[key] = Date.now();
+}
+
 async function loadIngredientes() {
   if (_isCacheValid('ingredientes')) return _cache.ingredientes;
   if (!CONFIG.scriptUrl) return [];
