@@ -310,6 +310,14 @@
     }
     .cal-food    { color: var(--amber); }
     .cal-burn    { color: var(--lime); }
+    .btn-edit {
+      background: none; border: 1px solid rgba(0,180,255,.3);
+      color: rgba(0,180,255,.7); border-radius: 6px;
+      width: 26px; height: 26px; font-size: .8rem; cursor: pointer;
+      transition: all var(--transition); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-edit:hover { background: rgba(0,180,255,.12); color: #00b4ff; border-color: #00b4ff; }
     .btn-delete {
       color: var(--text-3);
       font-size: 1rem; padding: 0.2rem 0.3rem; margin-left: 0.5rem;
@@ -2753,20 +2761,42 @@ function submitFood() {
     totalCalories: cals,
   };
 
-  // Save locally first - user sees entry immediately
-  state.foods[state.profile].push(entry);
+  if (_editingFoodId) {
+    // EDIT MODE: replace existing entry
+    const idx = state.foods[state.profile].findIndex(f => f.id === _editingFoodId);
+    if (idx >= 0) {
+      entry.id = _editingFoodId;           // keep original ID
+      entry.date = state.foods[state.profile][idx].date; // keep original date
+      state.foods[state.profile][idx] = entry;
+    } else {
+      state.foods[state.profile].push(entry);
+    }
+    // Update on Sheets: delete old row then insert updated
+    if (CONFIG.scriptUrl) {
+      pushDelete('food', state.profile, _editingFoodId);
+      pushEntry('food', state.profile, entry);
+    }
+    _editingFoodId = null;
+    const banner = document.getElementById('editModeBanner');
+    if (banner) banner.style.display = 'none';
+    showToast('Comida actualizada ✓', 'success');
+  } else {
+    // NEW entry
+    state.foods[state.profile].push(entry);
+    if (CONFIG.scriptUrl) pushEntry('food', state.profile, entry);
+    showToast('Comida registrada ✓', 'success');
+  }
+
   saveEntriesToStorage(state.profile);
   renderAll();
-  showToast('Comida registrada', 'success');
-
-  // Push to Sheets in background without blocking UI
-  if (CONFIG.scriptUrl) pushEntry('food', state.profile, entry);
 
   // Reset form
   if (nameEl)  nameEl.value  = '';
   if (calEl)   { calEl.value = ''; calEl.classList.remove('manual-edited'); }
   if (portEl)  portEl.value  = '1';
   if (badgeEl) { badgeEl.style.display = 'none'; }
+  const btn2 = document.getElementById('btnSaveFood');
+  if (btn2) { btn2.textContent = 'Guardar comida'; btn2.style.background=''; btn2.style.borderColor=''; btn2.style.color=''; }
   document.getElementById('ingredientRows').innerHTML = '';
   _ingredientIdCounter = 0;
   Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
@@ -3351,6 +3381,7 @@ function renderFoodList() {
         <div class="log-entry-sub">${f.portions !== 1 ? `${f.portions}x · ` : ''}${escHtml(f.ingredients || '')}</div>
       </div>
       <div class="log-entry-cal cal-food">+${(f.totalCalories||f.calories).toLocaleString()} kcal</div>
+      <button class="btn-edit" onclick="editFood('${f.id}')" title="Editar">✏</button>
       <button class="btn-delete" onclick="deleteFood('${f.id}')" title="Eliminar">✕</button>
     </div>
   `).join('');
@@ -3473,6 +3504,7 @@ function renderHistorial() {
                 <div class="log-entry-sub">${escHtml(f.ingredients||'')}</div>
               </div>
               <div class="log-entry-cal cal-food">+${(f.totalCalories||f.calories||0).toLocaleString()}</div>
+              <button class="btn-edit" onclick="editFood('${f.id}')" title="Editar">✏</button>
             </div>`).join('')}
           ${exs.map(e => `
             <div class="log-entry">
@@ -3488,6 +3520,123 @@ function renderHistorial() {
 }
 
 
+
+/* ── EDIT FOOD ENTRY ─────────────────────────────────────────── */
+// _editingFoodId tracks the entry being edited; null = new entry
+let _editingFoodId = null;
+
+function editFood(id) {
+  const entry = state.foods[state.profile].find(f => f.id === id);
+  if (!entry) { showToast('Entrada no encontrada', 'error'); return; }
+
+  _editingFoodId = id;
+
+  // Switch to comidas tab on the correct date
+  const date = sanitizeDate(entry.date);
+  state.selectedDate = date;
+  renderDateBar();
+  switchTab('comidas');
+
+  // Pre-fill form
+  const nameEl = document.getElementById('foodName');
+  const calEl  = document.getElementById('foodCalories');
+  const mealEl = document.getElementById('foodMeal');
+  const portEl = document.getElementById('foodPortions');
+  const badgeEl= document.getElementById('foodCalBadge');
+
+  if (nameEl)  nameEl.value  = entry.name        || '';
+  if (calEl)   { calEl.value = entry.totalCalories || entry.calories || ''; }
+  if (mealEl)  mealEl.value  = entry.meal         || 'Almuerzo';
+  if (portEl)  portEl.value  = entry.portions     || 1;
+  if (badgeEl) { badgeEl.textContent = 'Editando'; badgeEl.style.display = 'inline-flex';
+                 badgeEl.className = 'calorie-result-badge'; }
+
+  // Clear ingredient rows and repopulate from saved ingredients string
+  document.getElementById('ingredientRows').innerHTML = '';
+  _ingredientIdCounter = 0;
+  Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
+
+  const ingStr = entry.ingredients || '';
+  const lines  = ingStr.split(',').map(s => s.trim()).filter(Boolean);
+  if (lines.length) {
+    lines.forEach(l => addIngredientRow(l, true));
+  } else {
+    addIngredientRow('', true);
+  }
+
+  // Change Save button label and color to signal edit mode
+  const btn = document.getElementById('btnSaveFood');
+  if (btn) {
+    btn.textContent = '💾 Guardar cambios';
+    btn.style.background = 'rgba(0,180,255,0.18)';
+    btn.style.borderColor = 'rgba(0,180,255,0.5)';
+    btn.style.color = '#00b4ff';
+  }
+
+  // Show cancel edit banner
+  _showEditBanner(entry.name);
+
+  showToast('Cargando "' + (entry.name || 'comida') + '" para editar…', 'success');
+}
+
+function _showEditBanner(name) {
+  let banner = document.getElementById('editModeBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'editModeBanner';
+    banner.style.cssText = [
+      'background:rgba(0,180,255,.12)',
+      'border:1px solid rgba(0,180,255,.35)',
+      'border-radius:var(--r-sm)',
+      'padding:.5rem .85rem',
+      'font-size:.75rem',
+      'color:#00b4ff',
+      'display:flex',
+      'align-items:center',
+      'justify-content:space-between',
+      'margin-bottom:.5rem',
+    ].join(';');
+    banner.innerHTML = '<span>✏️ Modo edición: <strong id="editBannerName"></strong></span>' +
+      '<button onclick="cancelEditFood()" style="background:none;border:none;color:#00b4ff;cursor:pointer;font-size:.8rem;font-weight:700">✕ Cancelar</button>';
+    const form = document.querySelector('#content-comidas .form-card');
+    if (form) form.insertBefore(banner, form.firstChild);
+  }
+  const nameEl = document.getElementById('editBannerName');
+  if (nameEl) nameEl.textContent = name || 'entrada';
+  banner.style.display = 'flex';
+}
+
+function cancelEditFood() {
+  _editingFoodId = null;
+  _resetFoodForm();
+  const banner = document.getElementById('editModeBanner');
+  if (banner) banner.style.display = 'none';
+  showToast('Edición cancelada', 'success');
+}
+
+function _resetFoodForm() {
+  const nameEl  = document.getElementById('foodName');
+  const calEl   = document.getElementById('foodCalories');
+  const portEl  = document.getElementById('foodPortions');
+  const badgeEl = document.getElementById('foodCalBadge');
+  const btn     = document.getElementById('btnSaveFood');
+
+  if (nameEl)  nameEl.value  = '';
+  if (calEl)   { calEl.value = ''; calEl.classList.remove('manual-edited'); }
+  if (portEl)  portEl.value  = '1';
+  if (badgeEl) badgeEl.style.display = 'none';
+  if (btn) {
+    btn.textContent = 'Guardar comida';
+    btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = '';
+  }
+  document.getElementById('ingredientRows').innerHTML = '';
+  _ingredientIdCounter = 0;
+  Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
+  addIngredientRow('', true);
+  resetFoodCalc();
+  const macros = document.getElementById('macrosSummary');
+  if (macros) macros.style.display = 'none';
+}
 
 function jumpToDate(date) {
   // Set date immediately and switch tab — no waiting for Sheets
