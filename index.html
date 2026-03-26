@@ -1270,7 +1270,10 @@
       <!-- Ingredient rows (Sheets-backed search) -->
       <div class="ingredients-header">
         <span class="ingredients-label">Ingredientes</span>
-        <button class="btn-add-small" onclick="openAddIngredientModal()" style="font-size:.65rem">+ Nuevo ingrediente</button>
+        <div style="display:flex;gap:.3rem;align-items:center">
+          <button class="btn-add-small" onclick="refreshIngredientCache()" style="font-size:.6rem;padding:.15rem .45rem" title="Recargar desde Sheets">🔄</button>
+          <button class="btn-add-small" onclick="openAddIngredientModal()" style="font-size:.65rem">+ Nuevo</button>
+        </div>
       </div>
       <div id="ingredientRows"></div>
       <button class="btn-add-ingredient" onclick="addIngredientRow()">+ Agregar ingrediente</button>
@@ -2225,8 +2228,8 @@ async function loadIngredientes() {
           unidad_comun:    String(r.unidad_comun    || '100g'),
           cantidad_comun_g:Number(r.cantidad_comun_g)|| 100,
           notas:           String(r.notas           || ''),
-        })).filter(r => r.nombre && r.calorias_100g > 0);
-        _cache.ingredientes = items;
+        })).filter(r => r.nombre && r.nombre.trim() !== '');
+        _setCache('ingredientes', items);
         return items;
       }
     } catch (err) {
@@ -2234,7 +2237,7 @@ async function loadIngredientes() {
     }
   }
   const local = LOCAL_INGREDIENTES.map(r => ({ _type: 'ing', ...r }));
-  _cache.ingredientes = local;
+  _setCache('ingredientes', local);
   return local;
 }
 
@@ -2274,7 +2277,7 @@ const LOCAL_PRODUCTOS = [
 ];
 
 async function loadProductos() {
-  if (_cache.productos && _cache.productos.length) return _cache.productos;
+  if (_isCacheValid('productos')) return _cache.productos;
   if (CONFIG.scriptUrl) {
     try {
       const resp  = await apiGet({ action: 'getProductos' });
@@ -2296,25 +2299,25 @@ async function loadProductos() {
           azucar_g:     Number(r.azucar_g)    || 0,
           porcion_g:    Number(r.porcion_g)   || 100,
           notas:        String(r.notas        || ''),
-        })).filter(r => r.nombre && r.calorias > 0);
-        _cache.productos = items;
+        })).filter(r => r.nombre && r.nombre.trim() !== '');
+        _setCache('productos', items);
         return items;
       }
     } catch (e) {
       console.warn('loadProductos Sheets error:', e.message);
     }
   }
-  _cache.productos = LOCAL_PRODUCTOS;
+  _setCache('productos', LOCAL_PRODUCTOS);
   return LOCAL_PRODUCTOS;
 }
 
 async function loadRecetario() {
-  if (_cache.recetario && _cache.recetario.length) return _cache.recetario;
+  if (_isCacheValid('recetario')) return _cache.recetario;
   if (!CONFIG.scriptUrl) return [];
   try {
     const data  = await apiGet({ action: 'getRecetario' });
     const items = data && data.items ? data.items : [];
-    if (items.length) _cache.recetario = items;
+    if (items.length) { _setCache('recetario', items); }
     return items;
   } catch (err) {
     console.warn('loadRecetario error:', err);
@@ -2322,10 +2325,22 @@ async function loadRecetario() {
   }
 }
 
+function refreshIngredientCache() {
+  _cache.ingredientes = null; _cacheTime.ingredientes = 0;
+  _cache.recetario    = null; _cacheTime.recetario    = 0;
+  _cache.productos    = null; _cacheTime.productos    = 0;
+  showToast('Recargando ingredientes…', 'success');
+  if (CONFIG.scriptUrl) {
+    Promise.all([loadIngredientes(), loadProductos()]).then(() => {
+      showToast('Ingredientes actualizados ✓', 'success');
+    });
+  }
+}
+
 function invalidateCache() {
-  _cache.ingredientes = null;
-  _cache.recetario    = null;
-  _cache.productos    = null;
+  _cache.ingredientes = null; _cacheTime.ingredientes = 0;
+  _cache.recetario    = null; _cacheTime.recetario    = 0;
+  _cache.productos    = null; _cacheTime.productos    = 0;
 }
 
 /* ── CALCULATE CALORIES FROM SHEETS ROW ─────────────────────── */
