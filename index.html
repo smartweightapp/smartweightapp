@@ -1953,7 +1953,7 @@ async function syncTodayEntries(user, date) {
   if (data) {
     if (data.foods) {
       const normalized = data.foods
-        .map(f => ({ ...f, date: sanitizeDate(f.date) }))
+        .map(f => ({ ...f, id: String(f.id), date: sanitizeDate(f.date) }))
         .filter(f => !_deletedIds.has(String(f.id)));  // never re-insert deleted entries
       const other = state.foods[user].filter(f => f.date !== d);
       state.foods[user] = [...other, ...normalized];
@@ -1981,7 +1981,7 @@ async function syncAllEntries(user) {
     if (data) {
       if (data.foods) {
         const normalized = data.foods
-          .map(f => ({ ...f, date: sanitizeDate(f.date) }))
+          .map(f => ({ ...f, id: String(f.id), date: sanitizeDate(f.date) }))
           .filter(f => !_deletedIds.has(String(f.id)));
         const sheetsIds = new Set(normalized.map(f => String(f.id)));
         const localOnly = state.foods[user].filter(f => !sheetsIds.has(String(f.id)));
