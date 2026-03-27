@@ -2046,7 +2046,7 @@ async function loadIngredientes() {
       grasa_g:          Number(r.grasa_g)         || 0,
       fibra_g:          Number(r.fibra_g)         || 0,
       unidad_comun:     String(r.unidad_comun     || '100g'),
-      cantidad_comun_g: Number(r.cantidad_comun_g)|| 100,
+      cantidad_comun_g: Number(r.cantidad_comun_g) || 0,  // 0 triggers fallback in _effectiveGrams
       notas:            String(r.notas            || ''),
     })).filter(r => r.nombre && r.nombre.trim() !== '');
     if (items.length > 0) _setCache('ingredientes', items);  // only cache non-empty
@@ -2297,7 +2297,7 @@ async function _searchIngSheet(rowId, query) {
         carbs_g: Number(r.carbs_g) || 0,
         grasa_g: Number(r.grasa_g) || 0,
         fibra_g: Number(r.fibra_g) || 0,
-        cantidad_comun_g: Number(r.cantidad_comun_g) || 100
+        cantidad_comun_g: Number(r.cantidad_comun_g) || 0
       }
     });
   }
@@ -2498,7 +2498,7 @@ async function estimateFoodCalories() {
   const breakdown = entries.map(e => {
     const qty = e.qty != null ? e.qty : (e.factor || 1);
     const cal = calcIngCalories(e.row, qty);
-    const g   = Math.round((Number(e.row.cantidad_comun_g) || 100) * qty);
+    const g   = Math.round(_effectiveGrams(e.row) * qty);
     return `${e.row.nombre} ×${e.factor} (${g}g) — ${cal} kcal`;
   });
   showFoodResult(totalCal, breakdown, 'Sheets');
@@ -2843,7 +2843,7 @@ async function loadRecipeIntoForm(r) {
       if (portRow) portRow.style.display = 'flex';
       if (qtyInp)  qtyInp.value = qty;
       if (unitLbl) {
-        const g = Math.round((Number(normalized.cantidad_comun_g) || 100) * qty);
+        const g = Math.round(_effectiveGrams(normalized) * qty);
         unitLbl.innerHTML =
           '<span style="color:var(--text-3)">' + qty + ' × ' + (normalized.unidad_comun || '100g') + '</span>' +
           '<span style="color:var(--text-2);margin-left:.35rem">(' + g + 'g)</span>';
