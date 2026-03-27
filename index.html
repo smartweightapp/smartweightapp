@@ -2124,6 +2124,37 @@ function invalidateCache() {
 /* ── CALCULATE CALORIES FROM SHEETS ROW ─────────────────────── */
 // Sheets stores cal/100g + proteina/carbs/grasa per ingredient.
 // Factor = portions entered by user relative to unidad_comun.
+/**
+ * Extrae los gramos reales de 1 unidad_comun de un ingrediente.
+ * Prefiere cantidad_comun_g cuando > 1 (valor confiable).
+ * Si es 0 o 1 (bug de Sheets), parsea la cantidad del texto de unidad_comun.
+ *   "30g (aprox 2 rebs)"  → 30
+ *   "100g cocida"         → 100
+ *   "1 rebanada (38g)"    → 38
+ *   "1 tsp (5g)"          → 5
+ *   "1 taza 240ml"        → 240
+ *   "1 pieza mediana"     → 0 → usa cantidad_comun_g o 100
+ */
+function _effectiveGrams(row) {
+  const stored = Number(row.cantidad_comun_g) || 0;
+  if (stored > 1) return stored;                    // valor confiable
+  const unit = String(row.unidad_comun || '');
+  let m;
+  // "30g ...", "100g ..." al inicio
+  m = unit.match(/^(\d+\.?\d*)\s*(?:g|ml)/i);
+  if (m) return parseFloat(m[1]);
+  // "(38g)", "(5g)" en cualquier parte
+  m = unit.match(/\((\d+\.?\d*)\s*(?:g|ml)\)/i);
+  if (m) return parseFloat(m[1]);
+  // "60g / ..." — gramos antes de la barra
+  m = unit.match(/^(\d+\.?\d*)\s*g\s*\//i);
+  if (m) return parseFloat(m[1]);
+  // "1 taza 240ml" — ml en cualquier parte
+  m = unit.match(/(\d+\.?\d*)\s*ml/i);
+  if (m) return parseFloat(m[1]);
+  return stored || 100;
+}
+
 function calcIngCalories(row, factor) {
   // Products store exact kcal per presentacion — multiply by qty only
   if (row._fixedCal != null) return Math.round(row._fixedCal * factor);
@@ -2390,7 +2421,7 @@ function _updateIngLabel(rowId) {
   const unitLbl = document.getElementById(`ing-unit-${rowId}`);
   if (!unitLbl) return;
   const { row, qty } = entry;
-  const g   = Math.round((Number(row.cantidad_comun_g) || 0) * qty);
+  const g   = Math.round(_effectiveGrams(row) * qty);
   const rawUnit = row.unidad_comun || '100g';
   // Strip any leading number from unidad_comun (e.g. "1 taza" → "taza")
   const unitWord = rawUnit.replace(/^[\d\/\s\.]+/, '').trim() || rawUnit;
@@ -2817,8 +2848,9 @@ async function loadRecipeIntoForm(r) {
       // Refine qty: if recipe says "150g" and ingredient unidad is "100g cocida" (g-based),
       // convert to portions: qty = 150 / 100 = 1.5
       if (lineHasGrams && !isProduct) {
-        const unitG = Number(bestMatch.cantidad_comun_g) || 0;
-        if (unitG > 0) qty = rawQty / unitG;
+        // _effectiveGrams parsea la unidad aunque cantidad_comun_g=1 (bug Sheets)
+        const unitG = _effectiveGrams(bestMatch);
+        if (unitG > 0) qty = Math.round((rawQty / unitG) * 100) / 100;
       }
 
       const normalized = isProduct ? {
