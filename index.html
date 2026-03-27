@@ -2127,9 +2127,10 @@ function invalidateCache() {
 function calcIngCalories(row, factor) {
   // Products store exact kcal per presentacion — multiply by qty only
   if (row._fixedCal != null) return Math.round(row._fixedCal * factor);
-  const g   = (Number(row.cantidad_comun_g) || 100) * factor;
+  // Ingredientes: calorias_100g field now stores kcal per unidad_comun (column I)
+  // factor = number of portions (unidades_comun)  e.g. 1.5 for 150g when unidad=100g
   const cal = Number(row.calorias_100g) || 0;
-  return Math.round((cal / 100) * g);
+  return Math.round(cal * factor);
 }
 
 function calcIngMacros(row, factor) {
@@ -2143,14 +2144,13 @@ function calcIngMacros(row, factor) {
       fiber_g:               Math.round((Number(row.fibra_g)    || 0) * factor * 10) / 10,
     };
   }
-  // Ingredient: scale by grams per portion × qty / 100
-  const g = (Number(row.cantidad_comun_g) || 100) * factor;
+  // Ingredient: values are per unidad_comun — multiply by number of portions
   return {
-    calories:              Math.round((Number(row.calorias_100g) || 0) / 100 * g),
-    protein_g:             Math.round((Number(row.proteina_g)   || 0) / 100 * g * 10) / 10,
-    carbohydrates_total_g: Math.round((Number(row.carbs_g)      || 0) / 100 * g * 10) / 10,
-    fat_total_g:           Math.round((Number(row.grasa_g)      || 0) / 100 * g * 10) / 10,
-    fiber_g:               Math.round((Number(row.fibra_g)      || 0) / 100 * g * 10) / 10,
+    calories:              Math.round((Number(row.calorias_100g) || 0) * factor),
+    protein_g:             Math.round((Number(row.proteina_g)   || 0) * factor * 10) / 10,
+    carbohydrates_total_g: Math.round((Number(row.carbs_g)      || 0) * factor * 10) / 10,
+    fat_total_g:           Math.round((Number(row.grasa_g)      || 0) * factor * 10) / 10,
+    fiber_g:               Math.round((Number(row.fibra_g)      || 0) * factor * 10) / 10,
   };
 }
 
@@ -2285,7 +2285,7 @@ async function _searchIngSheet(rowId, query) {
     hits.push({
       label: '<span style="color:var(--text-2);font-size:.63rem;margin-right:.25rem">' + escHtml(categoria) + '</span>' +
              '<strong>' + escHtml(nombre) + '</strong> ' +
-             '<span style="color:var(--lime);font-size:.7rem">' + cal100 + ' kcal/100g</span>' +
+             '<span style="color:var(--lime);font-size:.7rem">' + cal100 + ' kcal/porción</span>' +
              (unidad ? '<span style="color:var(--text-3);font-size:.63rem"> · ' + escHtml(unidad) + '</span>' : ''),
       data: {
         _type: 'ing',
@@ -2390,7 +2390,7 @@ function _updateIngLabel(rowId) {
   const unitLbl = document.getElementById(`ing-unit-${rowId}`);
   if (!unitLbl) return;
   const { row, qty } = entry;
-  const g   = Math.round((Number(row.cantidad_comun_g) || 100) * qty);
+  const g   = Math.round((Number(row.cantidad_comun_g) || 0) * qty);
   const rawUnit = row.unidad_comun || '100g';
   // Strip any leading number from unidad_comun (e.g. "1 taza" → "taza")
   const unitWord = rawUnit.replace(/^[\d\/\s\.]+/, '').trim() || rawUnit;
@@ -2781,9 +2781,16 @@ async function loadRecipeIntoForm(r) {
     const keyword = _extractIngName(line);
     const qtyM    = line.match(/^(\d+\.?\d*)\s*(?:[a-z]*\s+)?/i);
     const fracM   = line.match(/^(\d+)\/(\d+)/);
-    const qty     = fracM
+    const rawQty  = fracM
       ? parseFloat(fracM[1]) / parseFloat(fracM[2])
       : qtyM ? parseFloat(qtyM[1]) : 1;
+    // If the line specifies grams (e.g. "150g pollo") and the ingredient's
+    // unidad_comun is also gram-based, convert to number of portions:
+    //   qty = lineGrams / cantidad_comun_g
+    // Otherwise use rawQty as the number of units (1 rebanada, 2 tazas, etc.)
+    const lineHasGrams = /^\d+\.?\d*\s*g\b/i.test(line.trim());
+    let qty = rawQty;
+    // will be refined after matching — see after bestMatch block
 
     // Score against full library (ings + prods)
     let bestScore = -1, bestMatch = null;
@@ -2806,6 +2813,13 @@ async function loadRecipeIntoForm(r) {
         : bestMatch.nombre;
 
       if (inp) inp.value = displayName;
+
+      // Refine qty: if recipe says "150g" and ingredient unidad is "100g cocida" (g-based),
+      // convert to portions: qty = 150 / 100 = 1.5
+      if (lineHasGrams && !isProduct) {
+        const unitG = Number(bestMatch.cantidad_comun_g) || 0;
+        if (unitG > 0) qty = rawQty / unitG;
+      }
 
       const normalized = isProduct ? {
         nombre:           displayName,
