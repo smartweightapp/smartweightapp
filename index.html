@@ -2724,10 +2724,14 @@ async function loadRecipeIntoForm(r) {
   document.getElementById('foodName').value = r.nombre || '';
   if (r.meal) document.getElementById('foodMeal').value = r.meal;
 
-  // Clear rows and nutrition cache
+  // Clear rows, nutrition cache, and calorie state
   document.getElementById('ingredientRows').innerHTML = '';
   _ingredientIdCounter = 0;
   Object.keys(_rowNutrition).forEach(k => delete _rowNutrition[k]);
+  const _calEl = document.getElementById('foodCalories');
+  const _bdgEl = document.getElementById('foodCalBadge');
+  if (_calEl) { _calEl.value = ''; _calEl.classList.remove('manual-edited'); }
+  if (_bdgEl) { _bdgEl.style.display = 'none'; }
 
   const ingLines = String(r.ingredientes || '').split(',').map(s => s.trim()).filter(Boolean);
   if (!ingLines.length) { addIngredientRow('', true); closeRecetarioModal(); return; }
@@ -2883,7 +2887,8 @@ async function loadRecipeIntoForm(r) {
             '<span style="color:var(--text-3)">' + qty + ' × ' + (normalized.unidad_comun || '100g') + '</span>' + rGlbl;
       }
       const calBadge = document.getElementById('ing-cal-' + rowId);
-      if (calBadge) calBadge.textContent = calcIngCalories(normalized, qty) + ' kcal';
+      var _dbgCal = calcIngCalories(normalized, qty);
+      if (calBadge) calBadge.textContent = _dbgCal > 0 ? (_dbgCal + ' kcal') : '— kcal';
       resolvedCount++;
 
     } else {
@@ -2895,13 +2900,14 @@ async function loadRecipeIntoForm(r) {
   // Update total calories from resolved ingredients
   updateTotalsFromResolved();
 
-  // If nothing resolved, fall back to recipe's stored calories
+  // If nothing resolved or total kcal = 0, fall back to recipe's stored calories
   const calInput = document.getElementById('foodCalories');
   const badge    = document.getElementById('foodCalBadge');
-  if (Object.keys(_rowNutrition).length === 0 && r.calorias) {
+  const resolvedTotal = parseFloat(calInput ? calInput.value : 0) || 0;
+  if ((Object.keys(_rowNutrition).length === 0 || resolvedTotal === 0) && r.calorias) {
     if (calInput) { calInput.value = r.calorias; calInput.classList.add('manual-edited'); }
-    if (badge) { badge.textContent = 'Recetario'; badge.className = 'calorie-result-badge manual'; badge.style.display = 'inline-flex'; }
-  } else if (calInput) {
+    if (badge) { badge.textContent = 'Total receta'; badge.className = 'calorie-result-badge'; badge.style.display = 'inline-flex'; }
+  } else if (calInput && resolvedTotal > 0) {
     calInput.classList.remove('manual-edited');
   }
 
