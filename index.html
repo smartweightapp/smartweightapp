@@ -2040,7 +2040,7 @@ async function loadIngredientes() {
       id:               String(r.id               || ''),
       categoria:        String(r.categoria        || ''),
       nombre:           String(r.nombre           || ''),
-      calorias_100g:    Number(r.calorias_100g)   || 0,
+      calorias_100g:    Number(r.calorias_unidad || r.calorias_100g) || 0,
       proteina_g:       Number(r.proteina_g)      || 0,
       carbs_g:          Number(r.carbs_g)         || 0,
       grasa_g:          Number(r.grasa_g)         || 0,
@@ -2295,7 +2295,7 @@ async function _searchIngSheet(rowId, query) {
   for (const r of ings) {
     const nombre    = (r.nombre    != null && r.nombre    !== '') ? String(r.nombre)    : null;
     const categoria = (r.categoria != null && r.categoria !== '') ? String(r.categoria) : '';
-    const cal100    = (r.calorias_100g != null) ? Number(r.calorias_100g) : 0;
+    const cal100    = Number(r.calorias_unidad || r.calorias_100g) || 0;
     const unidad    = (r.unidad_comun  != null) ? String(r.unidad_comun)  : '';
     if (!nombre) continue;                             // skip blank names only
     const nl = nombre.toLowerCase(), cl = categoria.toLowerCase();
