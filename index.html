@@ -2136,21 +2136,23 @@ function invalidateCache() {
  *   "1 pieza mediana"     → 0 → usa cantidad_comun_g o 100
  */
 function _effectiveGrams(row) {
-  const stored = Number(row.cantidad_comun_g) || 0;
-  if (stored > 1) return stored;                    // valor confiable
-  const unit = String(row.unidad_comun || '');
-  let m;
-  // "30g ...", "100g ..." al inicio
-  m = unit.match(/^(\d+\.?\d*)\s*(?:g|ml)/i);
+  // Returns gram-weight of 1 unidad_comun.
+  // stored>1 = reliable; else parse from unidad text.
+  var stored = Number(row.cantidad_comun_g) || 0;
+  if (stored > 1) return stored;
+  var unit = String(row.unidad_comun || "");
+  var m;
+  // "30g ...", "100g cocida"
+  m = unit.match(/^(\d+\.?\d*)\s*g(?!\d)/i);
   if (m) return parseFloat(m[1]);
-  // "(38g)", "(5g)" en cualquier parte
-  m = unit.match(/\((\d+\.?\d*)\s*(?:g|ml)\)/i);
+  // "(38g)", "(5g)"
+  m = unit.match(/\((\d+\.?\d*)\s*g\)/i);
   if (m) return parseFloat(m[1]);
-  // "60g / ..." — gramos antes de la barra
+  // "60g / ..."
   m = unit.match(/^(\d+\.?\d*)\s*g\s*\//i);
   if (m) return parseFloat(m[1]);
-  // "1 taza 240ml" — ml en cualquier parte
-  m = unit.match(/(\d+\.?\d*)\s*ml/i);
+  // "1 taza 240ml"
+  m = unit.match(/(\d+\.?\d*)\s*ml/i);
   if (m) return parseFloat(m[1]);
   return stored || 100;
 }
@@ -2875,10 +2877,10 @@ async function loadRecipeIntoForm(r) {
       if (portRow) portRow.style.display = 'flex';
       if (qtyInp)  qtyInp.value = qty;
       if (unitLbl) {
-        const g = Math.round(_effectiveGrams(normalized) * qty);
-        unitLbl.innerHTML =
-          '<span style="color:var(--text-3)">' + qty + ' × ' + (normalized.unidad_comun || '100g') + '</span>' +
-          '<span style="color:var(--text-2);margin-left:.35rem">(' + g + 'g)</span>';
+        var rEffG = _effectiveGrams(normalized);
+          var rGlbl = (rEffG > 1) ? (' <span style="color:var(--text-2)">(' + Math.round(rEffG * qty) + 'g)</span>') : '';
+          unitLbl.innerHTML =
+            '<span style="color:var(--text-3)">' + qty + ' × ' + (normalized.unidad_comun || '100g') + '</span>' + rGlbl;
       }
       const calBadge = document.getElementById('ing-cal-' + rowId);
       if (calBadge) calBadge.textContent = calcIngCalories(normalized, qty) + ' kcal';
